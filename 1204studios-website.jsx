@@ -17,7 +17,7 @@ const DEFAULT_BRANDS = [
 
 const DEFAULT_HERO = {
   headline: "Built for brands that move differently.",
-  subtext: "A Lagos-based creative and marketing studio. We design brands, build campaigns, produce print, and train the next wave of creative talent.",
+  subtext: "A Lagos-based creative and marketing agency. We design brands, build campaigns, produce print, and train the next wave of creative talent.",
   cta1: "Start a Project →",
   cta2: "See Our Work",
 };
