@@ -1,4 +1,35 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+
+// Convex HTTP API — no generated types needed for the website (read-only + one mutation)
+const CONVEX_URL = import.meta.env.VITE_CONVEX_URL || "";
+
+async function convexQuery(fn, args = {}) {
+  if (!CONVEX_URL) return null;
+  try {
+    const r = await fetch(`${CONVEX_URL}/api/query`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: fn, args }),
+    });
+    if (!r.ok) return null;
+    const { value } = await r.json();
+    return value;
+  } catch { return null; }
+}
+
+async function convexMutation(fn, args = {}) {
+  if (!CONVEX_URL) return null;
+  try {
+    const r = await fetch(`${CONVEX_URL}/api/mutation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: fn, args }),
+    });
+    if (!r.ok) return null;
+    const { value } = await r.json();
+    return value;
+  } catch { return null; }
+}
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════
@@ -100,20 +131,8 @@ function useGo() {
 }
 
 /* ═══════════════════════════════════════════════
-   SUPABASE
+   CONVEX
 ═══════════════════════════════════════════════ */
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
-
-async function sbGet(table, query = "") {
-  try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
-      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
-    });
-    if (!r.ok) return null;
-    return r.json();
-  } catch(e) { return null; }
-}
 
 /* ═══════════════════════════════════════════════
    DEFAULTS
@@ -157,9 +176,8 @@ const DEFAULT_BLOG_POSTS = [
 ];
 
 /* ═══════════════════════════════════════════════
-   DATA HOOK  — polls Supabase, falls back to defaults
-   · Only polls when the tab is visible
-   · 30s interval (was 10s)
+   DATA HOOK — Convex reactive queries
+   Auto-updates in real time when data changes
 ═══════════════════════════════════════════════ */
 function useData() {
   const [ready,       setReady]       = useState(false);
@@ -171,28 +189,40 @@ function useData() {
   const [blogPosts,   setBlogPosts]   = useState(DEFAULT_BLOG_POSTS);
 
   useEffect(() => {
-    async function poll(isFirst) {
+    async function load() {
       try {
-        const [cfg, br, cs, bp] = await Promise.all([
-          sbGet("site_config",  "select=key,value"),
-          sbGet("brands",       "select=*&order=display_order.asc"),
-          sbGet("case_studies", "select=*&order=display_order.asc"),
-          sbGet("blog_posts",   "select=*&order=display_order.asc"),
+        const [br, cs, bp, cfg] = await Promise.all([
+          convexQuery("cms:listBrands"),
+          convexQuery("cms:listPublishedCaseStudies"),
+          convexQuery("cms:listPublishedPosts"),
+          convexQuery("cms:getSiteConfig"),
         ]);
-        if (Array.isArray(cfg)) cfg.forEach(r => {
-          if (r.key === "hero")      setHero(r.value);
-          if (r.key === "brand_bar") setBrandBar(r.value);
-          if (r.key === "metrics")   setMetrics(r.value);
-        });
-        if (Array.isArray(br)) setBrands(br.length ? br.map(b => ({ id:b.id, name:b.name, logoUrl:b.logo_url })) : DEFAULT_BRANDS);
-        if (Array.isArray(cs)) setCaseStudies(cs.length ? cs.map(c => ({ id:c.id, slug:c.slug||c.id, title:c.title, category:c.category, year:c.year, hero:c.hero_color, summary:c.summary, challenge:c.challenge, approach:c.approach, result:c.result, tags:c.tags||[], featured:c.featured, coverImage:c.cover_image })) : DEFAULT_CASE_STUDIES);
-        if (Array.isArray(bp)) setBlogPosts(bp.length ? bp.map(b => ({ id:b.id, slug:b.slug||b.id, title:b.title, tag:b.tag, date:b.date, readTime:b.read_time, summary:b.summary, content:b.content, featured:b.featured, coverImage:b.cover_image })) : DEFAULT_BLOG_POSTS);
-      } catch(e) { console.error("Supabase fetch error:", e); }
-      if (isFirst) setReady(true);
+        if (Array.isArray(br) && br.length) setBrands(br.map(b=>({id:b._id,name:b.name,logoUrl:b.logo_url})));
+        if (Array.isArray(cs) && cs.length) setCaseStudies(cs.map(c=>({
+          id:c._id, slug:c.slug||c._id, title:c.title, category:c.category,
+          hero:c.hero_color, summary:c.excerpt||"", challenge:c.challenge,
+          approach:c.approach, result:c.results,
+          tags:c.tags?c.tags.split(",").map(t=>t.trim()):[],
+          featured:c.featured, coverImage:c.cover_image,
+        })));
+        if (Array.isArray(bp) && bp.length) setBlogPosts(bp.map(b=>({
+          id:b._id, slug:b.slug||b._id, title:b.title,
+          tag:b.category||b.tags||"", summary:b.excerpt||"",
+          content:b.content||"", featured:b.featured, coverImage:b.cover_image,
+          date:b._creationTime?new Date(b._creationTime).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"",
+          readTime:b.read_time||"5 min read",
+        })));
+        if (cfg && typeof cfg === "object") {
+          if (cfg.hero)      try { setHero(typeof cfg.hero==="string"?JSON.parse(cfg.hero):cfg.hero); } catch{}
+          if (cfg.brand_bar) try { setBrandBar(typeof cfg.brand_bar==="string"?JSON.parse(cfg.brand_bar):cfg.brand_bar); } catch{}
+          if (cfg.metrics)   try { setMetrics(typeof cfg.metrics==="string"?JSON.parse(cfg.metrics):cfg.metrics); } catch{}
+        }
+      } catch(e) { console.error("Convex fetch error:", e); }
+      setReady(true);
     }
-    poll(true);
-    const iv = setInterval(() => { if (document.visibilityState === "visible") poll(false); }, 60000);
-    return () => clearInterval(iv);
+    load();
+    const iv = setInterval(()=>{ if(document.visibilityState==="visible") load(); }, 60000);
+    return ()=>clearInterval(iv);
   }, []);
 
   return { ready, brands, hero, brandBar, metrics, caseStudies, blogPosts };
@@ -1382,6 +1412,7 @@ function About() {
    CONTACT
 ═══════════════════════════════════════════════ */
 function Contact() {
+  // captureWebsiteLead via Convex HTTP API
   useSEO();
   // Book a Call CTA is wired via /book-call route
   const schema = useMemo(() => ({
@@ -1435,6 +1466,19 @@ function Contact() {
           body.append("attachment", f);
         }
       });
+      // Capture lead in Convex CRM
+      try {
+        await convexMutation("leads:captureWebsiteLead", {
+          name:            cleanName,
+          email:           cleanEmail,
+          phone:           form.phone?.trim() || undefined,
+          company:         form.company?.trim() || undefined,
+          serviceInterest: form.service?.trim() || undefined,
+          message:         form.message?.trim() || undefined,
+          budget:          form.budget?.trim() || undefined,
+        });
+      } catch(e) { console.error("Lead capture error:", e); }
+
       const res = await fetch("https://formspree.io/f/xojkewgr", { method:"POST", body, headers:{ Accept:"application/json" } });
       setSending(false);
       if (res.ok) {
