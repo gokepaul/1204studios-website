@@ -1,35 +1,4 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-
-// Convex HTTP API — no generated types needed for the website (read-only + one mutation)
-const CONVEX_URL = import.meta.env.VITE_CONVEX_URL || "";
-
-async function convexQuery(fn, args = {}) {
-  if (!CONVEX_URL) return null;
-  try {
-    const r = await fetch(`${CONVEX_URL}/api/query`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: fn, args }),
-    });
-    if (!r.ok) return null;
-    const { value } = await r.json();
-    return value;
-  } catch { return null; }
-}
-
-async function convexMutation(fn, args = {}) {
-  if (!CONVEX_URL) return null;
-  try {
-    const r = await fetch(`${CONVEX_URL}/api/mutation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: fn, args }),
-    });
-    if (!r.ok) return null;
-    const { value } = await r.json();
-    return value;
-  } catch { return null; }
-}
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useParams, useLocation } from "react-router-dom";
 
 /* ═══════════════════════════════════════════════
@@ -131,8 +100,20 @@ function useGo() {
 }
 
 /* ═══════════════════════════════════════════════
-   CONVEX
+   SUPABASE
 ═══════════════════════════════════════════════ */
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rtkjrbczkeahhhuocejj.supabase.co";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+async function sbGet(table, query = "") {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+      headers: { "apikey": SUPABASE_KEY, "Authorization": `Bearer ${SUPABASE_KEY}` },
+    });
+    if (!r.ok) return null;
+    return r.json();
+  } catch(e) { return null; }
+}
 
 /* ═══════════════════════════════════════════════
    DEFAULTS
@@ -154,7 +135,7 @@ const DEFAULT_BRAND_BAR = {
 };
 const DEFAULT_METRICS = [
   { id:"m1", service:"Brand Design",  accent:"#ff2d78", headline:"Real businesses. Real communities. Real change.",                body:"Every brand we build puts a local business in a position to compete — on the national stage, against global players, for the customers they deserve.",                                        stats:[{value:"200+",label:"Local Businesses Elevated"},{value:"₦4.2B+",label:"Client Revenue Influenced"},{value:"40+",label:"Industries Reached"},{value:"6",label:"NGOs Rebranded Pro Bono"}] },
-  { id:"m2", service:"Marketing",     accent:"var(--yellow)", headline:"Visibility that opens doors for Nigerian businesses.",            body:"Our campaigns don't just drive clicks — they put local founders in front of customers, investors, and opportunities that change the trajectory of their businesses.",           stats:[{value:"50M+",label:"Nigerians Reached"},{value:"47K",label:"App Downloads in 30 Days"},{value:"₦2B+",label:"Media Investment Guided"},{value:"12",label:"Startups Taken to Market"}] },
+  { id:"m2", service:"Marketing",     accent:"#FFDE21", headline:"Visibility that opens doors for Nigerian businesses.",            body:"Our campaigns don't just drive clicks — they put local founders in front of customers, investors, and opportunities that change the trajectory of their businesses.",           stats:[{value:"50M+",label:"Nigerians Reached"},{value:"47K",label:"App Downloads in 30 Days"},{value:"₦2B+",label:"Media Investment Guided"},{value:"12",label:"Startups Taken to Market"}] },
   { id:"m3", service:"Print Media",   accent:"#00c8e0", headline:"Putting Nigerian brands on shelves that used to ignore them.",   body:"Professional print and packaging has always been the barrier between local products and retail shelves. We've removed that barrier for hundreds of Nigerian makers.",              stats:[{value:"500+",label:"Print Jobs Executed"},{value:"18%",label:"Client Cost Savings"},{value:"12",label:"SKUs Launched Into Retail"},{value:"3",label:"Award Commendations"}] },
   { id:"m4", service:"Tutoring",      accent:"#a855f7", headline:"Training the next generation of African creatives.",             body:"Every student we train is one more young Nigerian who can earn independently, build locally, and compete globally — without leaving home to do it.",                              stats:[{value:"300+",label:"Young Creatives Trained"},{value:"92%",label:"Graduates Now Employed"},{value:"15+",label:"Partner Schools & Orgs"},{value:"₦0",label:"Cost to Scholarship Students"}] },
 ];
@@ -176,8 +157,9 @@ const DEFAULT_BLOG_POSTS = [
 ];
 
 /* ═══════════════════════════════════════════════
-   DATA HOOK — Convex reactive queries
-   Auto-updates in real time when data changes
+   DATA HOOK  — polls Supabase, falls back to defaults
+   · Only polls when the tab is visible
+   · 30s interval (was 10s)
 ═══════════════════════════════════════════════ */
 function useData() {
   const [ready,       setReady]       = useState(false);
@@ -189,40 +171,28 @@ function useData() {
   const [blogPosts,   setBlogPosts]   = useState(DEFAULT_BLOG_POSTS);
 
   useEffect(() => {
-    async function load() {
+    async function poll(isFirst) {
       try {
-        const [br, cs, bp, cfg] = await Promise.all([
-          convexQuery("cms:listBrands"),
-          convexQuery("cms:listPublishedCaseStudies"),
-          convexQuery("cms:listPublishedPosts"),
-          convexQuery("cms:getSiteConfig"),
+        const [cfg, br, cs, bp] = await Promise.all([
+          sbGet("site_config",  "select=key,value"),
+          sbGet("brands",       "select=*&order=display_order.asc"),
+          sbGet("case_studies", "select=*&order=display_order.asc"),
+          sbGet("blog_posts",   "select=*&order=display_order.asc"),
         ]);
-        if (Array.isArray(br) && br.length) setBrands(br.map(b=>({id:b._id,name:b.name,logoUrl:b.logo_url})));
-        if (Array.isArray(cs) && cs.length) setCaseStudies(cs.map(c=>({
-          id:c._id, slug:c.slug||c._id, title:c.title, category:c.category,
-          hero:c.hero_color, summary:c.excerpt||"", challenge:c.challenge,
-          approach:c.approach, result:c.results,
-          tags:c.tags?c.tags.split(",").map(t=>t.trim()):[],
-          featured:c.featured, coverImage:c.cover_image,
-        })));
-        if (Array.isArray(bp) && bp.length) setBlogPosts(bp.map(b=>({
-          id:b._id, slug:b.slug||b._id, title:b.title,
-          tag:b.category||b.tags||"", summary:b.excerpt||"",
-          content:b.content||"", featured:b.featured, coverImage:b.cover_image,
-          date:b._creationTime?new Date(b._creationTime).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}):"",
-          readTime:b.read_time||"5 min read",
-        })));
-        if (cfg && typeof cfg === "object") {
-          if (cfg.hero)      try { setHero(typeof cfg.hero==="string"?JSON.parse(cfg.hero):cfg.hero); } catch{}
-          if (cfg.brand_bar) try { setBrandBar(typeof cfg.brand_bar==="string"?JSON.parse(cfg.brand_bar):cfg.brand_bar); } catch{}
-          if (cfg.metrics)   try { setMetrics(typeof cfg.metrics==="string"?JSON.parse(cfg.metrics):cfg.metrics); } catch{}
-        }
-      } catch(e) { console.error("Convex fetch error:", e); }
-      setReady(true);
+        if (Array.isArray(cfg)) cfg.forEach(r => {
+          if (r.key === "hero")      setHero(r.value);
+          if (r.key === "brand_bar") setBrandBar(r.value);
+          if (r.key === "metrics")   setMetrics(r.value);
+        });
+        if (Array.isArray(br)) setBrands(br.length ? br.map(b => ({ id:b.id, name:b.name, logoUrl:b.logo_url })) : DEFAULT_BRANDS);
+        if (Array.isArray(cs)) setCaseStudies(cs.length ? cs.map(c => ({ id:c.id, title:c.title, category:c.category, year:c.year, hero:c.hero_color, summary:c.summary, challenge:c.challenge, approach:c.approach, result:c.result, tags:c.tags||[], featured:c.featured })) : DEFAULT_CASE_STUDIES);
+        if (Array.isArray(bp)) setBlogPosts(bp.length ? bp.map(b => ({ id:b.id, title:b.title, tag:b.tag, date:b.date, readTime:b.read_time, summary:b.summary, content:b.content, featured:b.featured, coverImage:b.cover_image })) : DEFAULT_BLOG_POSTS);
+      } catch(e) { console.error("Supabase fetch error:", e); }
+      if (isFirst) setReady(true);
     }
-    load();
-    const iv = setInterval(()=>{ if(document.visibilityState==="visible") load(); }, 60000);
-    return ()=>clearInterval(iv);
+    poll(true);
+    const iv = setInterval(() => { if (document.visibilityState === "visible") poll(false); }, 60000);
+    return () => clearInterval(iv);
   }, []);
 
   return { ready, brands, hero, brandBar, metrics, caseStudies, blogPosts };
@@ -239,19 +209,19 @@ const Styles = memo(function Styles() {
       :root{
         --bg:#0a0a0a;--s1:#111111;--s2:#161616;--s3:#1e1e1e;
         --bd:rgba(255,255,255,0.07);--bd2:rgba(255,255,255,0.12);
-        --text:#f0ece6;--text-dim:rgba(240,236,230,0.7);--text-muted:rgba(240,236,230,0.5);
+        --text:#f0ece6;--text-dim:rgba(240,236,230,0.55);--text-muted:rgba(240,236,230,0.28);
         --surface:rgba(255,255,255,0.03);--surface-hover:rgba(255,255,255,0.055);
         --nav-blur:rgba(10,10,10,0.88);
-        --pink:#ff2d78;--yellow:#F26419;--cyan:#00c8e0;--purple:#a855f7;
+        --pink:#ff2d78;--yellow:#FFDE21;--cyan:#00c8e0;--purple:#a855f7;
         --always-white:#fff;--always-dark:#0a0a0a;
       }
       [data-theme="light"]{
         --bg:#f7f4f0;--s1:#eeebe6;--s2:#e5e1db;--s3:#dbd7d1;
         --bd:rgba(0,0,0,0.08);--bd2:rgba(0,0,0,0.14);
-        --text:#111111;--text-dim:rgba(17,17,17,0.72);--text-muted:rgba(17,17,17,0.55);
+        --text:#111111;--text-dim:rgba(17,17,17,0.55);--text-muted:rgba(17,17,17,0.35);
         --surface:rgba(0,0,0,0.03);--surface-hover:rgba(0,0,0,0.055);
         --nav-blur:rgba(247,244,240,0.92);
-        --pink:#e8235f;--yellow:#F26419;--cyan:#0099aa;--purple:#8b3fd6;
+        --pink:#e8235f;--yellow:#5C5C5C;--cyan:#0099aa;--purple:#8b3fd6;
       }
 
       html{scroll-behavior:smooth;background:var(--bg);}
@@ -268,7 +238,7 @@ const Styles = memo(function Styles() {
 
       .pill{display:inline-flex;align-items:center;padding:5px 14px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;border-radius:100px;}
       .pill-pink{background:rgba(255,45,120,.12);color:var(--pink);border:1px solid rgba(255,45,120,.25);}
-      .pill-yellow{background:rgba(242,100,25,.12);color:var(--yellow);border:1px solid rgba(242,100,25,.3);}
+      .pill-yellow{background:rgba(255,222,33,.12);color:var(--yellow);border:1px solid rgba(255,222,33,.3);}
       .pill-cyan{background:rgba(0,200,224,.1);color:var(--cyan);border:1px solid rgba(0,200,224,.25);}
       .pill-white{background:var(--surface);color:var(--text-dim);border:1px solid var(--bd2);}
 
@@ -300,12 +270,9 @@ const Styles = memo(function Styles() {
       .faq-chevron{flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:11px;transition:transform .3s;}
       .faq-body{font-size:14.5px;color:var(--text-dim);line-height:1.85;padding-bottom:22px;max-width:680px;}
 
-      @media(max-width:1180px){
-        .hide-mob{display:none!important;}
-        .mob-hamburger{display:flex!important;}
-      }
       @media(max-width:860px){
         .wrap,.wrap-sm{padding:0 18px!important;}
+        .hide-mob{display:none!important;}
         .mob-col{flex-direction:column!important;}
         .mob-grid1{grid-template-columns:1fr!important;}
         .mob-full{width:100%!important;}
@@ -315,6 +282,7 @@ const Styles = memo(function Styles() {
         .prob-fix-col{display:none!important;}
         .prob-acc-inner{padding-left:0!important;}
         .proc-sticky{position:static!important;}
+        .mob-hamburger{display:flex!important;}
       }
     `}</style>
   );
@@ -373,12 +341,9 @@ function Navbar({ theme, toggleTheme }) {
       transition: "background .35s, border-color .35s",
     }}>
       <div className="wrap" style={{ height:66, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <Link to="/" onClick={close} style={{ display:"flex", alignItems:"center" }}>
-          <img
-            src={theme === "dark" ? "/logo-white.svg" : "/logo-black.svg"}
-            alt="1204Studios"
-            style={{ height:28, width:"auto", display:"block", transition:"opacity .2s" }}
-          />
+        <Link to="/" onClick={close} style={{ display:"flex", alignItems:"center", gap:2 }}>
+          <span style={{ fontWeight:800, fontSize:22, color:"var(--text)", letterSpacing:"-.03em", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>1204</span>
+          <span style={{ fontWeight:800, fontSize:22, color:"var(--pink)", letterSpacing:"-.03em", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>Studios</span>
         </Link>
         <div className="hide-mob" style={{ display:"flex", gap:2, alignItems:"center", background:"var(--surface)", border:"1px solid var(--bd)", borderRadius:100, padding:"5px 6px" }}>
           {NAV_LINKS.map(l => (
@@ -386,14 +351,12 @@ function Navbar({ theme, toggleTheme }) {
           ))}
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-          <button onClick={toggleTheme} className="theme-btn hide-mob" title="Toggle theme" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+          <button onClick={toggleTheme} className="theme-btn hide-mob" title="Toggle theme">
             {theme === "dark" ? "☀" : "☾"}
           </button>
           <Link to="/book-call" onClick={close} className="btn btn-ghost btn-sm hide-mob" style={{marginRight:6}}>Book a Call</Link><Link to="/contact" onClick={close} className="btn btn-primary btn-sm hide-mob">Start a Project →</Link>
           <button
             onClick={() => setOpen(o => !o)}
-            aria-label={open ? "Close menu" : "Open menu"}
-            aria-expanded={open}
             style={{ background:"var(--surface)", border:"1px solid var(--bd)", borderRadius:8, padding:"10px 12px", display:"none", flexDirection:"column", gap:4.5 }}
             className="mob-hamburger">
             <span style={{ display:"block", width:18, height:1.5, background:"var(--text)" }}/>
@@ -412,7 +375,7 @@ function Navbar({ theme, toggleTheme }) {
               borderBottom:"1px solid var(--bd)", cursor:"pointer", textDecoration:"none", display:"block",
             })}>{l.label}</NavLink>
           ))}
-          <button onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{ background:"none", border:"none", color:"var(--text-dim)", fontSize:14, fontWeight:500, padding:"14px 4px", textAlign:"left", cursor:"pointer" }}>
+          <button onClick={toggleTheme} style={{ background:"none", border:"none", color:"var(--text-dim)", fontSize:14, fontWeight:500, padding:"14px 4px", textAlign:"left", cursor:"pointer" }}>
             {theme === "dark" ? "☀  Switch to Light Mode" : "☾  Switch to Dark Mode"}
           </button>
         </div>
@@ -465,7 +428,7 @@ function HeroSection({ hero }) {
 ═══════════════════════════════════════════════ */
 const PROBLEMS = [
   { num:"01", accent:"#ff2d78", page:"Marketing", label:"Marketing",      problem:"Most marketing in Nigeria is done without research.",              detail:"Budgets are spent on vibes, not strategy. Campaigns launch without a clear audience, a defined message, or any way to measure success. The spend happens. The results don't.",                                       fix:"We build campaigns backwards — from the audience in, not the brief out. Every naira traced to a reason." },
-  { num:"02", accent:"#F26419", page:"Branding",  label:"Brand Design",   problem:"Designs are made without understanding the problem.",              detail:"Most Nigerian businesses get logos, not brands. A designer picks a font, ships something that looks fine but means nothing — and falls apart the moment it's applied anywhere real.",                              fix:"We start with positioning, not pixels. The visual system comes last — after we understand who you are, who you're for, and what you're trying to say." },
+  { num:"02", accent:"#FFDE21", page:"Branding",  label:"Brand Design",   problem:"Designs are made without understanding the problem.",              detail:"Most Nigerian businesses get logos, not brands. A designer picks a font, ships something that looks fine but means nothing — and falls apart the moment it's applied anywhere real.",                              fix:"We start with positioning, not pixels. The visual system comes last — after we understand who you are, who you're for, and what you're trying to say." },
   { num:"03", accent:"#00c8e0", page:"Print",     label:"Print Media",    problem:"Print is produced without attention to detail.",                   detail:"Blurry logos. Wrong colour profiles. Fonts that pixelate at scale. Nigerian businesses are losing deals because their print looks cheap — even when their product isn't.",                                      fix:"We treat print with digital-grade rigour. Correct colour modes, proper bleed, production-ready files, and vendor management from spec to delivery." },
   { num:"04", accent:"#a855f7", page:"Tutoring",  label:"Next Generation",problem:"Everyone is working. Nobody is building a pipeline.",              detail:"Design studios are packed with talent — but most of it was self-taught with no structure and no mentorship. When those people leave, the knowledge leaves with them.",                                          fix:"We run structured programmes that produce job-ready creatives — people who understand the thinking behind great work, not just the tools." },
 ];
@@ -521,7 +484,7 @@ function ProblemStatements() {
             );
           })}
         </div>
-        <style>{`@media(min-width:1181px){.prob-fix-col{display:block!important;}.prob-accordion{display:none!important;}}`}</style>
+        <style>{`@media(min-width:861px){.prob-fix-col{display:block!important;}.prob-accordion{display:none!important;}}`}</style>
       </div>
     </section>
   );
@@ -530,58 +493,8 @@ function ProblemStatements() {
 /* ═══════════════════════════════════════════════
    BRAND BAR
 ═══════════════════════════════════════════════ */
-const BrandLogo = memo(function BrandLogo({ b }) {
-  const [hovered, setHovered] = useState(false);
-  const [isDark, setIsDark] = useState(() => document.documentElement.getAttribute("data-theme") !== "light");
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.getAttribute("data-theme") !== "light");
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => observer.disconnect();
-  }, []);
-
-  // Dark theme: logos are light-coloured originals — dim to grey
-  // Light theme: logos may be dark — dim to grey without inverting
-  const defaultFilter = isDark
-    ? "brightness(0) invert(1)"
-    : "grayscale(100%) brightness(0.75) contrast(0.9)";
-
-  return (
-    <div
-      style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"0 40px", borderRight:"1px solid var(--bd)", width:160, height:60, flexShrink:0, cursor:"default" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {b.logoUrl
-        ? <img
-            src={b.logoUrl}
-            alt={b.name}
-            loading="lazy"
-            width="110"
-            height="40"
-            style={{
-              maxHeight:40, maxWidth:110, objectFit:"contain", display:"block",
-              filter: hovered ? "none" : defaultFilter,
-              opacity: hovered ? 1 : isDark ? 0.3 : 0.6,
-              transition: "filter .35s ease, opacity .35s ease",
-            }}
-          />
-        : <span style={{
-            fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif",
-            fontWeight:700, fontSize:16,
-            color: hovered ? "var(--text)" : "var(--text-muted)",
-            letterSpacing:"-.01em", whiteSpace:"nowrap",
-            transition:"color .35s ease",
-          }}>{b.name}</span>}
-    </div>
-  );
-});
-
 const BrandBar = memo(function BrandBar({ brands, brandBar }) {
   const doubled = useMemo(() => [...brands, ...brands], [brands]);
-  const [paused, setPaused] = useState(false);
   return (
     <section style={{ background:"var(--s1)", borderTop:"1px solid var(--bd)", borderBottom:"1px solid var(--bd)", padding:"60px 0" }}>
       <div className="wrap" style={{ marginBottom:32 }}>
@@ -590,14 +503,14 @@ const BrandBar = memo(function BrandBar({ brands, brandBar }) {
         </p>
         <p style={{ fontSize:13.5, color:"var(--text-muted)", marginTop:6, fontStyle:"italic" }}>{brandBar.sub}</p>
       </div>
-      <div
-        style={{ overflow:"hidden", maskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", WebkitMaskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", contain:"layout" }}
-        onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
-      >
-        <div style={{ display:"flex", width:"max-content", animation:"marquee 40s linear infinite", animationPlayState: paused ? "paused" : "running", willChange:"transform" }}>
+      <div style={{ overflow:"hidden", maskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", WebkitMaskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", contain:"layout" }}>
+        <div style={{ display:"flex", width:"max-content", animation:"marquee 40s linear infinite", willChange:"transform" }}>
           {doubled.map((b, i) => (
-            <BrandLogo key={i} b={b} />
+            <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"0 40px", borderRight:"1px solid var(--bd)", width:150, height:52, flexShrink:0 }}>
+              {b.logoUrl
+                ? <img src={b.logoUrl} alt={b.name} loading="lazy" width="100" height="36" style={{ maxHeight:36, maxWidth:100, objectFit:"contain", filter:"brightness(0) invert(1)", opacity:.3 }}/>
+                : <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:700, fontSize:16, color:"var(--text-muted)", letterSpacing:"-.01em", whiteSpace:"nowrap" }}>{b.name}</span>}
+            </div>
           ))}
         </div>
       </div>
@@ -608,12 +521,6 @@ const BrandBar = memo(function BrandBar({ brands, brandBar }) {
 /* ═══════════════════════════════════════════════
    METRICS CAROUSEL
 ═══════════════════════════════════════════════ */
-function resolveAccent(accent) {
-  if (!accent.startsWith("var(")) return accent;
-  // Read the computed CSS variable value from the document root
-  return getComputedStyle(document.documentElement).getPropertyValue("--yellow").trim() || "#F26419";
-}
-
 function MetricsCarousel({ metrics }) {
   const [active, setActive] = useState(0);
   const timer = useRef(null);
@@ -640,10 +547,10 @@ function MetricsCarousel({ metrics }) {
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             {metrics.map((item, i) => (
-              <button key={item.id} onClick={() => goTo(i)} aria-label={item.service} style={{
+              <button key={item.id} onClick={() => goTo(i)} style={{
                 padding:"8px 18px", fontSize:12.5, fontWeight:600, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif",
-                border:`1px solid ${i === active ? resolveAccent(item.accent) + "60" : "var(--bd)"}`,
-                borderRadius:100, background:i === active ? resolveAccent(item.accent) + "15" : "var(--surface)",
+                border:`1px solid ${i === active ? item.accent + "60" : "var(--bd)"}`,
+                borderRadius:100, background:i === active ? `${item.accent}15` : "var(--surface)",
                 color:i === active ? item.accent : "var(--text-dim)", cursor:"pointer", transition:"all .25s",
               }}>{item.service}</button>
             ))}
@@ -656,7 +563,7 @@ function MetricsCarousel({ metrics }) {
             <p style={{ fontSize:15.5, color:"var(--text-dim)", lineHeight:1.8, maxWidth:400, marginBottom:36 }}>{m.body}</p>
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               {metrics.map((_, i) => (
-                <button key={i} onClick={() => goTo(i)} aria-label={`Go to slide ${i + 1}`} style={{ width:i === active ? 28 : 7, height:7, background:i === active ? m.accent : "var(--bd2)", border:"none", cursor:"pointer", transition:"all .4s", borderRadius:4, padding:0, minWidth:24, minHeight:24 }}/>
+                <button key={i} onClick={() => goTo(i)} style={{ width:i === active ? 28 : 7, height:7, background:i === active ? m.accent : "var(--bd2)", border:"none", cursor:"pointer", transition:"all .4s", borderRadius:4, padding:0 }}/>
               ))}
             </div>
           </div>
@@ -680,24 +587,14 @@ function MetricsCarousel({ metrics }) {
 ═══════════════════════════════════════════════ */
 const CSCard = memo(function CSCard({ cs, onClick }) {
   return (
-    <div onClick={onClick} style={{ background:cs.hero || "var(--s2)", border:"1px solid var(--bd)", cursor:"pointer", transition:"transform .3s, border-color .3s", position:"relative", overflow:"hidden", minHeight:240 }}
+    <div onClick={onClick} style={{ background:cs.hero || "var(--s2)", border:"1px solid var(--bd)", padding:36, cursor:"pointer", transition:"transform .3s, border-color .3s", position:"relative", overflow:"hidden", minHeight:240 }}
       onMouseOver={e => { e.currentTarget.style.borderColor = "rgba(255,45,120,.3)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
       onMouseOut={e => { e.currentTarget.style.borderColor = "var(--bd)"; e.currentTarget.style.transform = ""; }}>
-      {cs.coverImage && (
-        <div style={{ height:200, overflow:"hidden", position:"relative" }}>
-          <img src={cs.coverImage} alt={cs.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform .4s" }}
-            onMouseOver={e => e.currentTarget.style.transform="scale(1.04)"}
-            onMouseOut={e => e.currentTarget.style.transform="scale(1)"} />
-          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 40%, " + (cs.hero||"#111") + ")" }} />
-        </div>
-      )}
-      <div style={{ padding:36, position:"relative" }}>
-        <div style={{ position:"absolute", bottom:-20, right:-10, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:110, color:"rgba(255,255,255,.03)", lineHeight:1, userSelect:"none", pointerEvents:"none" }}>1204</div>
-        <span className="pill pill-pink" style={{ marginBottom:16, display:"inline-block" }}>{cs.category}</span>
-        <h3 style={{ fontWeight:700, fontSize:"clamp(17px,2vw,22px)", color:"#fff", marginBottom:10, lineHeight:1.2 }}>{cs.title}</h3>
-        <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.55)", lineHeight:1.7, maxWidth:400 }}>{cs.summary}</p>
-        <div style={{ marginTop:24, fontSize:13, color:"var(--pink)", fontWeight:600 }}>Read Case Study →</div>
-      </div>
+      <div style={{ position:"absolute", bottom:-20, right:-10, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:110, color:"rgba(255,255,255,.03)", lineHeight:1, userSelect:"none", pointerEvents:"none" }}>1204</div>
+      <span className="pill pill-pink" style={{ marginBottom:16, display:"inline-block" }}>{cs.category}</span>
+      <h3 style={{ fontWeight:700, fontSize:"clamp(17px,2vw,22px)", color:"#fff", marginBottom:10, lineHeight:1.2 }}>{cs.title}</h3>
+      <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.55)", lineHeight:1.7, maxWidth:400 }}>{cs.summary}</p>
+      <div style={{ marginTop:24, fontSize:13, color:"var(--pink)", fontWeight:600 }}>Read Case Study →</div>
     </div>
   );
 });
@@ -736,9 +633,9 @@ const FAQ = memo(function FAQ() {
               const isOpen = open === i;
               return (
                 <div key={i} className="faq-item">
-                  <button className="faq-btn" onClick={() => toggle(i)} aria-expanded={isOpen} aria-label={f.q}>
+                  <button className="faq-btn" onClick={() => toggle(i)}>
                     <span className="faq-q">{f.q}</span>
-                    <span className="faq-chevron" aria-hidden="true" style={{ transform:isOpen ? "rotate(135deg)" : "none" }}>+</span>
+                    <span className="faq-chevron" style={{ transform:isOpen ? "rotate(135deg)" : "none" }}>+</span>
                   </button>
                   <div style={{ overflow:"hidden", maxHeight:isOpen ? "320px" : "0", transition:"max-height .38s cubic-bezier(.4,0,.2,1)" }}>
                     <p className="faq-body">{f.a}</p>
@@ -840,7 +737,7 @@ function Home({ brands, hero, brandBar, metrics, caseStudies, blogPosts }) {
               <button onClick={() => go("Portfolio")} className="btn btn-ghost">All Work →</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:featuredCS.length >= 3 ? "1fr 1fr" : "1fr", gap:3 }} className="mob-grid1">
-              {featuredCS.map(cs => <CSCard key={cs.id} cs={cs} onClick={() => { navigate("/portfolio/" + (cs.slug || cs.id)); window.scrollTo(0, 0); }} />)}
+              {featuredCS.map(cs => <CSCard key={cs.id} cs={cs} onClick={() => { navigate("/portfolio/" + cs.id); window.scrollTo(0, 0); }} />)}
             </div>
           </div>
         </section>
@@ -885,17 +782,11 @@ function Home({ brands, hero, brandBar, metrics, caseStudies, blogPosts }) {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:3 }}>
               {featuredBP.map(post => (
                 <div key={post.id} className="glass" style={{ cursor:"pointer", transition:"transform .3s, background .2s", overflow:"hidden" }}
-                  onClick={() => { navigate("/blog/" + (post.slug || post.id)); window.scrollTo(0, 0); }}
+                  onClick={() => { navigate("/blog/" + post.id); window.scrollTo(0, 0); }}
                   onMouseOver={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.transform = "translateY(-3px)"; }}
                   onMouseOut={e => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.transform = ""; }}>
-                  {post.coverImage
-                    ? <div style={{ height:180, overflow:"hidden", position:"relative" }}>
-                        <img src={post.coverImage} alt={post.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform .4s" }}
-                          onMouseOver={e => e.currentTarget.style.transform="scale(1.04)"}
-                          onMouseOut={e => e.currentTarget.style.transform="scale(1)"} />
-                      </div>
-                    : <div style={{ height:4, background:"var(--pink)" }}/>}
-                  <div style={{ padding:"24px 24px" }}>
+                  <div style={{ height:4, background:"var(--pink)" }}/>
+                  <div style={{ padding:"28px 24px" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
                       <span className="pill pill-pink" style={{ fontSize:10 }}>{post.tag}</span>
                       <span style={{ fontSize:11.5, color:"var(--text-muted)" }}>{post.readTime}</span>
@@ -972,11 +863,11 @@ function Portfolio({ caseStudies }) {
         <div className="wrap">
           <div style={{ display:"flex", gap:6, marginBottom:48, flexWrap:"wrap" }}>
             {cats.map(c => (
-              <button key={c} onClick={() => setFilter(c)} aria-label={`Filter by ${c}`} aria-pressed={filter === c} style={{ padding:"8px 20px", border:"1px solid var(--bd)", borderRadius:100, background:filter === c ? "#fff" : "transparent", color:filter === c ? "#0a0a0a" : "var(--text-dim)", fontSize:13, fontWeight:500, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", cursor:"pointer", transition:"all .2s" }}>{c}</button>
+              <button key={c} onClick={() => setFilter(c)} style={{ padding:"8px 20px", border:"1px solid var(--bd)", borderRadius:100, background:filter === c ? "#fff" : "transparent", color:filter === c ? "#0a0a0a" : "var(--text-dim)", fontSize:13, fontWeight:500, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", cursor:"pointer", transition:"all .2s" }}>{c}</button>
             ))}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))", gap:3 }}>
-            {filtered.map(cs => <CSCard key={cs.id} cs={cs} onClick={() => { navigate("/portfolio/" + (cs.slug || cs.id)); window.scrollTo(0, 0); }} />)}
+            {filtered.map(cs => <CSCard key={cs.id} cs={cs} onClick={() => { navigate("/portfolio/" + cs.id); window.scrollTo(0, 0); }} />)}
           </div>
         </div>
       </section>
@@ -989,24 +880,17 @@ function Portfolio({ caseStudies }) {
 ═══════════════════════════════════════════════ */
 function CaseStudyDetail({ id, caseStudies }) {
   const go = useGo();
-  const cs = useMemo(() => caseStudies.find(c => c.slug === id || c.id === id), [caseStudies, id]);
+  const cs = useMemo(() => caseStudies.find(c => c.id === id), [caseStudies, id]);
   useSEO(cs ? { title: cs.title + " — Case Study — 1204Studios", description: cs.summary } : {});
   if (!cs) return <div style={{ padding:"200px 40px", textAlign:"center" }}><Link to="/portfolio" className="btn btn-ghost">← Back</Link></div>;
   return (
     <div>
-      {cs.coverImage && (
-        <div style={{ position:"relative", height:"clamp(300px,50vw,560px)", overflow:"hidden" }}>
-          <img src={cs.coverImage} alt={cs.title}
-            style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", filter:"grayscale(100%) brightness(0.38)" }} />
-          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(10,10,10,0.1) 0%, rgba(10,10,10,0.6) 55%, " + (cs.hero||"var(--bg)") + " 100%)" }} />
-        </div>
-      )}
-      <section style={{ background:cs.coverImage ? "var(--bg)" : (cs.hero || "var(--bg)"), paddingTop: cs.coverImage ? 52 : 140, paddingBottom:80, position:"relative" }}>
-        {!cs.coverImage && <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 40%,var(--bg))" }}/>}
+      <section style={{ background:cs.hero || "var(--bg)", paddingTop:140, paddingBottom:80, position:"relative" }}>
+        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 40%,var(--bg))" }}/>
         <div className="wrap" style={{ position:"relative", zIndex:1 }}>
           <button onClick={() => go("Portfolio")} className="btn btn-ghost btn-sm" style={{ marginBottom:28 }}>← Back to Work</button>
           <span className="pill pill-pink" style={{ marginBottom:20, display:"inline-block" }}>{cs.category}</span>
-          <h1 className="dn" style={{ fontSize:"clamp(44px,7vw,88px)", color:"var(--text)" }}>{cs.title}</h1>
+          <h1 className="dn" style={{ fontSize:"clamp(44px,7vw,88px)", color:"#fff" }}>{cs.title}</h1>
           <div style={{ display:"flex", gap:20, marginTop:24, flexWrap:"wrap" }}>
             {cs.tags?.map(t => <span key={t} className="pill pill-white">{t}</span>)}
             <span className="pill pill-white">{cs.year}</span>
@@ -1047,22 +931,16 @@ function Blog({ blogPosts }) {
       <section style={{ background:"var(--bg)", padding:"80px 0" }}>
         <div className="wrap">
           <div style={{ display:"flex", gap:6, marginBottom:48, flexWrap:"wrap" }}>
-            {tags.map(t => <button key={t} onClick={() => setFilter(t)} aria-label={`Filter by ${t}`} aria-pressed={filter === t} style={{ padding:"8px 18px", border:"1px solid var(--bd)", borderRadius:100, background:filter === t ? "#fff" : "transparent", color:filter === t ? "#0a0a0a" : "var(--text-dim)", fontSize:13, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", cursor:"pointer", transition:"all .2s" }}>{t}</button>)}
+            {tags.map(t => <button key={t} onClick={() => setFilter(t)} style={{ padding:"8px 18px", border:"1px solid var(--bd)", borderRadius:100, background:filter === t ? "#fff" : "transparent", color:filter === t ? "#0a0a0a" : "var(--text-dim)", fontSize:13, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", cursor:"pointer", transition:"all .2s" }}>{t}</button>)}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:3 }}>
             {filtered.map(post => (
-              <div key={post.id} className="glass" style={{ cursor:"pointer", transition:"transform .3s, background .2s", overflow:"hidden" }}
-                onClick={() => { navigate("/blog/" + (post.slug || post.id)); window.scrollTo(0, 0); }}
+              <div key={post.id} className="glass" style={{ cursor:"pointer", transition:"transform .3s, background .2s" }}
+                onClick={() => { navigate("/blog/" + post.id); window.scrollTo(0, 0); }}
                 onMouseOver={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.transform = "translateY(-3px)"; }}
                 onMouseOut={e => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.transform = ""; }}>
-                {post.coverImage
-                  ? <div style={{ height:200, overflow:"hidden" }}>
-                      <img src={post.coverImage} alt={post.title} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform .4s" }}
-                        onMouseOver={e => e.currentTarget.style.transform="scale(1.04)"}
-                        onMouseOut={e => e.currentTarget.style.transform="scale(1)"} />
-                    </div>
-                  : <div style={{ height:4, background:"var(--pink)" }}/>}
-                <div style={{ padding:"24px 24px" }}>
+                <div style={{ height:4, background:"var(--pink)" }}/>
+                <div style={{ padding:"28px 24px" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                     <span className="pill pill-pink" style={{ fontSize:10 }}>{post.tag}</span>
                     <span style={{ fontSize:11.5, color:"var(--text-muted)" }}>{post.readTime}</span>
@@ -1085,19 +963,12 @@ function Blog({ blogPosts }) {
 ═══════════════════════════════════════════════ */
 function BlogPostDetail({ id, blogPosts }) {
   const go   = useGo();
-  const post = useMemo(() => blogPosts.find(p => p.slug === id || p.id === id), [blogPosts, id]);
+  const post = useMemo(() => blogPosts.find(p => p.id === id), [blogPosts, id]);
   useSEO(post ? { title: post.title + " — 1204Studios Blog", description: post.summary } : {});
   if (!post) return <div style={{ padding:"200px 40px", textAlign:"center" }}><Link to="/blog" className="btn btn-ghost">← Back</Link></div>;
   return (
     <div>
-      {post.coverImage && (
-        <div style={{ position:"relative", height:"clamp(280px,45vw,520px)", overflow:"hidden" }}>
-          <img src={post.coverImage} alt={post.title}
-            style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", filter:"grayscale(100%) brightness(0.45)" }} />
-          <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(10,10,10,0.1) 0%, rgba(10,10,10,0.55) 60%, var(--bg) 100%)" }} />
-        </div>
-      )}
-      <section style={{ background:"var(--bg)", paddingTop: post.coverImage ? 52 : 140, paddingBottom:80, borderBottom:"1px solid var(--bd)" }}>
+      <section style={{ background:"var(--bg)", paddingTop:140, paddingBottom:80, borderBottom:"1px solid var(--bd)" }}>
         <div className="wrap wrap-sm">
           <button onClick={() => go("Blog")} className="btn btn-ghost btn-sm" style={{ marginBottom:28 }}>← Back to Blog</button>
           <span className="pill pill-pink" style={{ marginBottom:20, display:"inline-block" }}>{post.tag}</span>
@@ -1149,19 +1020,13 @@ function RichContent({ text }) {
   }
 
   function renderInline(str) {
-    // Split on **bold** and [text](url) links
-    const parts = str.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
-    return parts.map((p, i) => {
-      if (p.startsWith("**") && p.endsWith("**"))
-        return <strong key={i} style={{ color:"var(--text)", fontWeight:700 }}>{p.slice(2,-2)}</strong>;
-      const linkMatch = p.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-      if (linkMatch)
-        return <a key={i} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
-          style={{ color:"var(--pink)", borderBottom:"1px solid rgba(255,45,120,.35)", paddingBottom:1, textDecoration:"none" }}
-          onMouseOver={e=>e.currentTarget.style.borderBottomColor="var(--pink)"}
-          onMouseOut={e=>e.currentTarget.style.borderBottomColor="rgba(255,45,120,.35)"}>{linkMatch[1]}</a>;
-      return p;
-    });
+    // Handle **bold**
+    const parts = str.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((p, i) =>
+      p.startsWith("**") && p.endsWith("**")
+        ? <strong key={i} style={{ color:"var(--text)", fontWeight:700 }}>{p.slice(2,-2)}</strong>
+        : p
+    );
   }
 
   const blocks = text.split(/\n\n+/).filter(b => b.trim());
@@ -1412,7 +1277,6 @@ function About() {
    CONTACT
 ═══════════════════════════════════════════════ */
 function Contact() {
-  // captureWebsiteLead via Convex HTTP API
   useSEO();
   // Book a Call CTA is wired via /book-call route
   const schema = useMemo(() => ({
@@ -1443,10 +1307,10 @@ function Contact() {
     const cleanLink    = sanitize(form.link, 500);
 
     if (!cleanName)                  return setSendErr("Please enter your name.");
-    if (!validEmail(cleanEmail))     return setSendErr("Please enter a valid email address. Example: name@company.com");
+    if (!validEmail(cleanEmail))     return setSendErr("Please enter a valid email address.");
     if (!cleanMessage)               return setSendErr("Please describe your project.");
     if (cleanMessage.length < 10)    return setSendErr("Please tell us a bit more about your project.");
-    if (cleanLink && !validUrl(cleanLink)) return setSendErr("Reference link must start with http:// or https://");
+    if (!validUrl(cleanLink))        return setSendErr("Reference link must be a valid http/https URL.");
     if (!canSubmit())                return setSendErr("Please wait 60 seconds before submitting again.");
 
     setSending(true); setSendErr("");
@@ -1466,19 +1330,6 @@ function Contact() {
           body.append("attachment", f);
         }
       });
-      // Capture lead in Convex CRM
-      try {
-        await convexMutation("leads:captureWebsiteLead", {
-          name:            cleanName,
-          email:           cleanEmail,
-          phone:           form.phone?.trim() || undefined,
-          company:         form.company?.trim() || undefined,
-          serviceInterest: form.service?.trim() || undefined,
-          message:         form.message?.trim() || undefined,
-          budget:          form.budget?.trim() || undefined,
-        });
-      } catch(e) { console.error("Lead capture error:", e); }
-
       const res = await fetch("https://formspree.io/f/xojkewgr", { method:"POST", body, headers:{ Accept:"application/json" } });
       setSending(false);
       if (res.ok) {
@@ -1544,7 +1395,7 @@ function Contact() {
                       {[{ k:"name", l:"Full Name", p:"Your name" }, { k:"email", l:"Email", p:"hello@company.com" }].map(f => (
                         <div key={f.k}>
                           <label style={labelStyle}>{f.l}</label>
-                          <input value={form[f.k]} onChange={e => setForm({ ...form, [f.k]: stripEmoji(e.target.value) })} placeholder={f.p}
+                          <input value={form[f.k]} onChange={e => setForm({ ...form, [f.k]: e.target.value })} placeholder={f.p}
                             style={inputStyle} onFocus={e => e.target.style.borderColor = "var(--pink)"} onBlur={e => e.target.style.borderColor = "var(--bd)"} />
                         </div>
                       ))}
@@ -1563,7 +1414,7 @@ function Contact() {
                     </div>
                     <div>
                       <label style={labelStyle}>Your Brief</label>
-                      <textarea value={form.message} onChange={e => setForm({ ...form, message: stripEmoji(e.target.value) })} rows={4}
+                      <textarea value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} rows={4}
                         placeholder="Tell us about your project — scope, timeline, and budget."
                         style={{ ...inputStyle, resize:"vertical" }}
                         onFocus={e => e.target.style.borderColor = "var(--pink)"} onBlur={e => e.target.style.borderColor = "var(--bd)"} />
@@ -1603,7 +1454,6 @@ function Contact() {
                     </div>
                     {sendErr && <p style={{ color:"var(--pink)", fontSize:13, textAlign:"center" }}>{sendErr}</p>}
                     <button onClick={handleSubmit} disabled={sending || !form.name || !form.email || !form.message}
-                      aria-label="Send project brief"
                       className="btn btn-primary"
                       style={{ justifyContent:"center", padding:16, fontSize:15, borderRadius:8, width:"100%", opacity:(sending || !form.name || !form.email || !form.message) ? 0.55 : 1, cursor:sending ? "wait" : "pointer" }}>
                       {sending ? "Sending…" : "Send Brief →"}
@@ -1620,21 +1470,8 @@ function Contact() {
 }
 
 /* ── Input sanitizers & validators ─────────────────────────── */
-// Strip emoji and non-printable characters from form fields
-const EMOJI_RE = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}\u{2B00}-\u{2BFF}\u{FE00}-\u{FEFF}\u{1F300}-\u{1F9FF}\u{E000}-\u{F8FF}\u200B-\u200D\uFEFF]/gu;
-const stripEmoji = (s) => String(s || "").replace(EMOJI_RE, "").trim();
-
-// Sanitize: strip emoji, collapse whitespace, enforce max length
-const sanitize = (s, max = 500) => stripEmoji(String(s || "")).replace(/\s+/g, " ").slice(0, max).trim();
-
-// Email validation: RFC-compliant regex — requires real TLD, no spaces, proper @
-const validEmail = (e) => {
-  const clean = String(e || "").trim().toLowerCase();
-  if (!clean || clean.length > 254) return false;
-  // Must have one @, valid local part, domain with at least one dot and 2+ char TLD
-  return /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(clean);
-};
-
+const sanitize   = (s, max = 500)  => String(s || "").trim().slice(0, max);
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e.trim());
 const validUrl   = (u) => { if (!u) return true; try { const p = new URL(u); return ["http:","https:"].includes(p.protocol); } catch { return false; } };
 const ALLOWED_FILE_TYPES = new Set(["application/pdf","image/jpeg","image/png","image/svg+xml","application/zip"]);
 const ALLOWED_EXTS = /\.(pdf|jpg|jpeg|png|svg|zip|fig)$/i;
@@ -1658,8 +1495,7 @@ function NewsletterSignup() {
 
   const submit = useCallback(async () => {
     const clean = sanitize(email, 200);
-    if (!clean) return setStatus("error");
-    if (!validEmail(clean)) { setStatus("error"); return; }
+    if (!validEmail(clean)) return;
     setStatus("sending");
     try {
       const body = new FormData();
@@ -1682,14 +1518,13 @@ function NewsletterSignup() {
       <div style={{ display:"flex", gap:8 }}>
         <input
           value={email}
-          onChange={e => setEmail(stripEmoji(e.target.value))}
+          onChange={e => setEmail(e.target.value)}
           onKeyDown={e => e.key === "Enter" && submit()}
           placeholder="Your email"
           type="email"
-          aria-label="Email address for newsletter"
           style={{ flex:1, background:"rgba(128,128,128,.08)", border:"1px solid rgba(255,255,255,.12)", color:"#fff", padding:"10px 14px", fontSize:13, outline:"none", borderRadius:8, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}
         />
-        <button onClick={submit} disabled={status === "sending"} aria-label="Subscribe to newsletter" className="btn btn-pink btn-sm" style={{ borderRadius:8, padding:"10px 18px", minWidth:44, minHeight:44 }}>
+        <button onClick={submit} disabled={status === "sending"} className="btn btn-pink btn-sm" style={{ borderRadius:8, padding:"10px 18px" }}>
           {status === "sending" ? "…" : "→"}
         </button>
       </div>
@@ -1712,8 +1547,9 @@ const Footer = memo(function Footer() {
       <div className="wrap">
         <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:48, paddingBottom:56, borderBottom:"1px solid rgba(255,255,255,.08)" }} className="mob-grid1">
           <div>
-            <Link to="/" style={{ display:"flex", alignItems:"center", marginBottom:18 }}>
-              <img src="/logo-white.svg" alt="1204Studios" style={{ height:26, width:"auto", display:"block" }} />
+            <Link to="/" style={{ display:"flex", alignItems:"center", gap:2, marginBottom:18 }}>
+              <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:24, color:"#fff", letterSpacing:"-.02em" }}>1204</span>
+              <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:24, color:"var(--pink)", letterSpacing:"-.02em" }}>Studios</span>
             </Link>
             <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.8, maxWidth:260, marginBottom:28 }}>A creative and marketing studio in Lagos, Nigeria. Built for brands that move differently.</p>
             <NewsletterSignup />
@@ -1800,7 +1636,7 @@ function TermsOfUse() {
   ];
   return (
     <div>
-      <PageHero label="Legal" title={`Terms<br/><span style="color:var(--yellow)">of Use</span>`} accent="#F26419" sub="Last updated: January 2025. Please read these terms carefully before using our website." />
+      <PageHero label="Legal" title={`Terms<br/><span style="color:var(--yellow)">of Use</span>`} accent="#ffe600" sub="Last updated: January 2025. Please read these terms carefully before using our website." />
       <section style={{ background:"var(--bg)", padding:"80px 0" }}>
         <div className="wrap wrap-sm">
           <div className="glass" style={{ padding:"48px 44px", marginBottom:32 }}>
@@ -1948,7 +1784,10 @@ function AppInner() {
           minHeight:"100vh", background:"#0a0a0a", display:"flex",
           alignItems:"center", justifyContent:"center", flexDirection:"column", gap:20,
         }}>
-          <img src="/logo-white.svg" alt="1204Studios" style={{ height:36, width:"auto", display:"block" }} />
+          <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+            <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,sans-serif", fontWeight:800, fontSize:32, color:"#fff", letterSpacing:"-.02em" }}>1204</span>
+            <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,sans-serif", fontWeight:800, fontSize:32, color:"#ff2d78", letterSpacing:"-.02em" }}>Studios</span>
+          </div>
           <div style={{ width:32, height:2, background:"rgba(255,255,255,.1)", borderRadius:2, overflow:"hidden" }}>
             <div style={{ height:"100%", background:"#ff2d78", animation:"sbLoad 1.2s ease infinite", borderRadius:2 }} />
           </div>
