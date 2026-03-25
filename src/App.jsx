@@ -705,8 +705,9 @@ function Home({ brands, hero, brandBar, metrics, caseStudies, blogPosts }) {
     "@context":"https://schema.org", "@type":"Organization", "name":"1204Studios",
     "url":"https://1204studios.com", "logo":"https://1204studios.com/favicon.svg",
     "description":"A Lagos-based creative and marketing studio.",
-    "address":{ "@type":"PostalAddress", "addressLocality":"Lagos", "addressCountry":"NG" },
-    "contactPoint":{ "@type":"ContactPoint", "email":"hello@1204studios.com", "contactType":"customer service" },
+    "address":{ "@type":"PostalAddress", "streetAddress":"22 Glover Road", "addressLocality":"Ikoyi, Lagos", "addressCountry":"NG" },
+    "telephone":"+2349035583476",
+    "contactPoint":{ "@type":"ContactPoint", "email":"hello@1204studios.com", "telephone":"+2349035583476", "contactType":"customer service" },
     "sameAs":["https://instagram.com/1204studios","https://twitter.com/1204studios","https://linkedin.com/company/1204studios"],
   }), []);
 
@@ -1283,7 +1284,7 @@ function Contact() {
     "@context":"https://schema.org", "@type":"ContactPage",
     "name":"Contact 1204Studios", "url":"https://1204studios.com/contact",
     "description":"Get in touch with 1204Studios to start a project.",
-    "mainEntity":{ "@type":"Organization", "name":"1204Studios", "email":"hello@1204studios.com", "address":{ "@type":"PostalAddress", "addressLocality":"Lagos", "addressCountry":"NG" } },
+    "mainEntity":{ "@type":"Organization", "name":"1204Studios", "email":"hello@1204studios.com", "telephone":"+2349035583476", "address":{ "@type":"PostalAddress", "streetAddress":"22 Glover Road", "addressLocality":"Ikoyi, Lagos", "addressCountry":"NG" } },
   }), []);
 
   const [form,     setForm]     = useState({ name:"", email:"", company:"", service:"", message:"", link:"" });
@@ -1365,12 +1366,25 @@ function Contact() {
             <div>
               <span className="label" style={{ color:"var(--text-muted)" }}>Contact Details</span>
               <h2 className="dn" style={{ fontSize:"clamp(36px,4vw,56px)", color:"var(--text)", marginTop:10, marginBottom:36 }}>Find Us</h2>
-              {[{ l:"Email", v:"hello@1204studios.com", i:"✉" }, { l:"Location", v:"Lagos, Nigeria", i:"◎" }, { l:"Working Hours", v:"Mon–Fri, 9am–6pm WAT", i:"◷" }].map((item, i) => (
+              {[
+                { l:"Email",         v:"hello@1204studios.com",              i:"✉", href:"mailto:hello@1204studios.com" },
+                { l:"Phone",         v:"+234 903 558 3476",                  i:"☎", href:"tel:+2349035583476" },
+                { l:"Address",       v:"22 Glover Rd, Ikoyi, Lagos",         i:"◎", href:"https://maps.google.com/?q=22+Glover+Road+Ikoyi+Lagos+Nigeria" },
+                { l:"Working Hours", v:"Mon–Fri, 9am–6pm WAT",               i:"◷", href:null },
+              ].map((item, i) => (
                 <div key={i} style={{ display:"flex", gap:18, marginBottom:28, alignItems:"center" }}>
                   <div style={{ width:44, height:44, background:"rgba(255,45,120,.1)", border:"1px solid rgba(255,45,120,.2)", borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", color:"var(--pink)", fontSize:16, flexShrink:0 }}>{item.i}</div>
                   <div>
                     <p style={{ fontSize:11, letterSpacing:2, textTransform:"uppercase", color:"var(--text-muted)", marginBottom:4 }}>{item.l}</p>
-                    <p style={{ fontWeight:600, fontSize:15, color:"var(--text)" }}>{item.v}</p>
+                    {item.href
+                      ? <a href={item.href} target={item.href.startsWith("http") ? "_blank" : undefined} rel={item.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                          style={{ fontWeight:600, fontSize:15, color:"var(--text)", textDecoration:"none", borderBottom:"1px solid rgba(255,45,120,.3)", paddingBottom:1, transition:"color .15s, border-color .15s" }}
+                          onMouseOver={e=>{e.currentTarget.style.color="var(--pink)";e.currentTarget.style.borderColor="var(--pink)";}}
+                          onMouseOut={e=>{e.currentTarget.style.color="var(--text)";e.currentTarget.style.borderColor="rgba(255,45,120,.3)";}}>
+                          {item.v}
+                        </a>
+                      : <p style={{ fontWeight:600, fontSize:15, color:"var(--text)", margin:0 }}>{item.v}</p>
+                    }
                   </div>
                 </div>
               ))}
@@ -1551,7 +1565,18 @@ const Footer = memo(function Footer() {
               <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:24, color:"#fff", letterSpacing:"-.02em" }}>1204</span>
               <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:24, color:"var(--pink)", letterSpacing:"-.02em" }}>Studios</span>
             </Link>
-            <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.8, maxWidth:260, marginBottom:28 }}>A creative and marketing studio in Lagos, Nigeria. Built for brands that move differently.</p>
+            <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.8, maxWidth:260, marginBottom:12 }}>A creative and marketing studio in Lagos, Nigeria. Built for brands that move differently.</p>
+            <div style={{ marginBottom:28 }}>
+              <a href="tel:+2349035583476" style={{ display:"block", fontSize:13, color:"rgba(255,255,255,0.45)", textDecoration:"none", marginBottom:6, transition:"color .15s" }}
+                onMouseOver={e=>e.currentTarget.style.color="#fff"} onMouseOut={e=>e.currentTarget.style.color="rgba(255,255,255,0.45)"}>
+                ☎ +234 903 558 3476
+              </a>
+              <a href="https://maps.google.com/?q=22+Glover+Road+Ikoyi+Lagos+Nigeria" target="_blank" rel="noopener noreferrer"
+                style={{ display:"block", fontSize:13, color:"rgba(255,255,255,0.45)", textDecoration:"none", transition:"color .15s" }}
+                onMouseOver={e=>e.currentTarget.style.color="#fff"} onMouseOut={e=>e.currentTarget.style.color="rgba(255,255,255,0.45)"}>
+                ◎ 22 Glover Rd, Ikoyi, Lagos
+              </a>
+            </div>
             <NewsletterSignup />
           </div>
           {FOOTER_COLS.map((col, i) => (
