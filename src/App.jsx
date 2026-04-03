@@ -27,7 +27,7 @@ const SITE_URL  = "https://1204studios.com";
 
 const SEO_MAP = {
   "/":                   { title:"1204Studios — Creative & Marketing Studio Lagos", description:"1204Studios is a Lagos-based creative studio specialising in brand identity, marketing campaigns, print media, and design education. Built for brands that move differently." },
-  "/about":              { title:"About Us — 1204Studios", description:"Meet the team behind 1204Studios. Two designers who never settled for average. We build brands, run campaigns, and train the next generation of African creatives." },
+  "/about":              { title:"About Us — 1204Studios", description:"A technology-led, detail-obsessed creative studio in Lagos. We integrate AI into our workflows and deliver with hands-on craft and signature excellence." },
   "/contact":            { title:"Contact Us — Start a Project with 1204Studios", description:"Ready to work with 1204Studios? Send us your brief. We work with startups, growing businesses, and institutions across Lagos and Nigeria." },
   "/portfolio":          { title:"Our Work — Portfolio — 1204Studios", description:"Browse case studies from 1204Studios. Brand identities, marketing campaigns, print projects, and more." },
   "/blog":               { title:"Blog — Thinking on Brand, Design & Marketing — 1204Studios", description:"Articles, opinions, and frameworks on branding, marketing, design, and creative business from the team at 1204Studios in Lagos." },
@@ -99,11 +99,26 @@ function useGo() {
   }, [navigate]);
 }
 
+/* Section reveal on scroll */
+function useSectionReveal() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { el.classList.add("visible"); obs.unobserve(el); }
+    }, { threshold: 0.08, rootMargin: "0px 0px -40px 0px" });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return ref;
+}
+
 /* ═══════════════════════════════════════════════
    SUPABASE
 ═══════════════════════════════════════════════ */
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://rtkjrbczkeahhhuocejj.supabase.co";
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0a2pyYmN6a2VhaGhodW9jZWpqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNDI4MzksImV4cCI6MjA4NzgxODgzOX0.P5v30xR3ojxKQ4suca7cLo-EdeMV1194DHTVevUcvBI";
 
 async function sbGet(table, query = "") {
   try {
@@ -176,8 +191,8 @@ function useData() {
         const [cfg, br, cs, bp] = await Promise.all([
           sbGet("site_config",  "select=key,value"),
           sbGet("brands",       "select=*&order=display_order.asc"),
-          sbGet("case_studies", "select=*&order=display_order.asc"),
-          sbGet("blog_posts",   "select=*&order=display_order.asc"),
+          sbGet("case_studies", "select=*&order=display_order.asc&published=eq.true"),
+          sbGet("blog_posts",   "select=*&order=display_order.asc&published=eq.true"),
         ]);
         if (Array.isArray(cfg)) cfg.forEach(r => {
           if (r.key === "hero")      setHero(r.value);
@@ -185,8 +200,8 @@ function useData() {
           if (r.key === "metrics")   setMetrics(r.value);
         });
         if (Array.isArray(br)) setBrands(br.length ? br.map(b => ({ id:b.id, name:b.name, logoUrl:b.logo_url })) : DEFAULT_BRANDS);
-        if (Array.isArray(cs)) setCaseStudies(cs.length ? cs.map(c => ({ id:c.id, title:c.title, category:c.category, year:c.year, hero:c.hero_color, summary:c.summary, challenge:c.challenge, approach:c.approach, result:c.result, tags:c.tags||[], featured:c.featured })) : DEFAULT_CASE_STUDIES);
-        if (Array.isArray(bp)) setBlogPosts(bp.length ? bp.map(b => ({ id:b.id, title:b.title, tag:b.tag, date:b.date, readTime:b.read_time, summary:b.summary, content:b.content, featured:b.featured, coverImage:b.cover_image })) : DEFAULT_BLOG_POSTS);
+        if (Array.isArray(cs)) setCaseStudies(cs.length ? cs.map(c => ({ id:c.id, slug:c.slug||c.id, title:c.title, category:c.category, year:c.year, hero:c.hero_color, summary:c.excerpt||c.summary, challenge:c.challenge, approach:c.approach, result:c.results||c.result, tags:c.tags ? (typeof c.tags==="string"?c.tags.split(",").map(t=>t.trim()):c.tags) : [], featured:c.featured, coverImage:c.cover_image })) : DEFAULT_CASE_STUDIES);
+        if (Array.isArray(bp)) setBlogPosts(bp.length ? bp.map(b => ({ id:b.id, slug:b.slug||b.id, title:b.title, tag:b.category||b.tag, date:b.date||new Date(b.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}), readTime:b.read_time||"5 min read", summary:b.excerpt||b.summary, content:b.content, featured:b.featured, coverImage:b.cover_image })) : DEFAULT_BLOG_POSTS);
       } catch(e) { console.error("Supabase fetch error:", e); }
       if (isFirst) setReady(true);
     }
@@ -209,7 +224,7 @@ const Styles = memo(function Styles() {
       :root{
         --bg:#0a0a0a;--s1:#111111;--s2:#161616;--s3:#1e1e1e;
         --bd:rgba(255,255,255,0.07);--bd2:rgba(255,255,255,0.12);
-        --text:#f0ece6;--text-dim:rgba(240,236,230,0.55);--text-muted:rgba(240,236,230,0.28);
+        --text:#f0ece6;--text-dim:rgba(240,236,230,0.72);--text-muted:rgba(240,236,230,0.48);
         --surface:rgba(255,255,255,0.03);--surface-hover:rgba(255,255,255,0.055);
         --nav-blur:rgba(10,10,10,0.88);
         --pink:#ff2d78;--yellow:#FFDE21;--cyan:#00c8e0;--purple:#a855f7;
@@ -218,10 +233,10 @@ const Styles = memo(function Styles() {
       [data-theme="light"]{
         --bg:#f7f4f0;--s1:#eeebe6;--s2:#e5e1db;--s3:#dbd7d1;
         --bd:rgba(0,0,0,0.08);--bd2:rgba(0,0,0,0.14);
-        --text:#111111;--text-dim:rgba(17,17,17,0.55);--text-muted:rgba(17,17,17,0.35);
+        --text:#111111;--text-dim:rgba(17,17,17,0.68);--text-muted:rgba(17,17,17,0.50);
         --surface:rgba(0,0,0,0.03);--surface-hover:rgba(0,0,0,0.055);
         --nav-blur:rgba(247,244,240,0.92);
-        --pink:#e8235f;--yellow:#5C5C5C;--cyan:#0099aa;--purple:#8b3fd6;
+        --pink:#d41e52;--yellow:#5C5C5C;--cyan:#007f8f;--purple:#7c2fc4;
       }
 
       html{scroll-behavior:smooth;background:var(--bg);}
@@ -257,11 +272,38 @@ const Styles = memo(function Styles() {
       .theme-btn{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:100px;border:1px solid var(--bd2);background:var(--surface);color:var(--text-dim);font-size:14px;cursor:pointer;flex-shrink:0;}
       .theme-btn:hover{background:var(--surface-hover);color:var(--text);}
 
+      /* Navbar logo - always shows full color */
+      .nav-logo-link{display:flex;align-items:center;}
+
+      /* Brand marquee logos - greyscale on scroll, color on hover */
+      .brand-marquee-item{transition:filter .4s cubic-bezier(.4,0,.2,1),opacity .4s;}
+      .brand-marquee-item img{filter:grayscale(1);opacity:.35;transition:filter .4s cubic-bezier(.4,0,.2,1),opacity .4s;}
+      .brand-marquee-item span{transition:color .4s,opacity .4s;}
+      .brand-marquee-item:hover img{filter:grayscale(0)!important;opacity:1!important;}
+      .brand-marquee-item:hover span{color:var(--text)!important;opacity:1!important;}
+
+      /* Blog card thumbnails */
+      .blog-thumb{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s cubic-bezier(.4,0,.2,1);}
+      .blog-thumb-wrap:hover .blog-thumb{transform:scale(1.06);}
+
       @keyframes marquee{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
       @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
       .fu{animation:fadeUp .65s cubic-bezier(.22,1,.36,1) both;}
       .d1{animation-delay:.08s;}.d2{animation-delay:.18s;}.d3{animation-delay:.28s;}.d4{animation-delay:.4s;}
       @keyframes pulseH{0%,100%{opacity:.25;}50%{opacity:1;}}
+
+      /* Section reveal on scroll */
+      .section-reveal{opacity:0;transform:translateY(32px);transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1);}
+      .section-reveal.visible{opacity:1;transform:translateY(0);}
+
+      /* Elevated glass cards */
+      .glass{transition:background-color .2s,border-color .2s,transform .3s,box-shadow .3s;}
+      .glass:hover{transform:translateY(-3px);box-shadow:0 8px 32px rgba(0,0,0,.12);}
+
+      /* Smoother button hovers */
+      .btn{transition:opacity .2s,transform .2s,filter .2s,box-shadow .2s;}
+      .btn-primary:hover{opacity:.9;transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.15);}
+      .btn-pink:hover{filter:brightness(1.08);transform:translateY(-2px);box-shadow:0 4px 20px rgba(255,45,120,.25);}
 
       .faq-item{border-bottom:1px solid var(--bd);}
       .faq-item:first-child{border-top:1px solid var(--bd);}
@@ -303,7 +345,7 @@ const NAV_LINKS = [
 
 const NAV_PILL = memo(function NavPill({ navLinkStyle }) {
   return (
-    <div className="hide-mob" style={{ display:"flex", gap:2, alignItems:"center", background:"var(--surface)", border:"1px solid var(--bd)", borderRadius:100, padding:"3px" }}>
+    <div className="hide-mob" style={{ display:"flex", gap:2, alignItems:"center", background:"var(--surface)", border:"1px solid var(--bd)", borderRadius:100, padding:"4px 5px" }}>
       {NAV_LINKS.map(l => (
         <NavLink key={l.path} to={l.path} style={navLinkStyle}>{l.label}</NavLink>
       ))}
@@ -341,9 +383,12 @@ function Navbar({ theme, toggleTheme }) {
       transition: "background .35s, border-color .35s",
     }}>
       <div className="wrap" style={{ height:66, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <Link to="/" onClick={close} style={{ display:"flex", alignItems:"center", gap:2 }}>
-          <span style={{ fontWeight:800, fontSize:22, color:"var(--text)", letterSpacing:"-.03em", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>1204</span>
-          <span style={{ fontWeight:800, fontSize:22, color:"var(--pink)", letterSpacing:"-.03em", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>Studios</span>
+        <Link to="/" onClick={close} className="nav-logo-link">
+          <img
+            src={theme === "dark" ? "/logo-white.svg" : "/logo-black.svg"}
+            alt="1204Studios"
+            style={{ height:28, width:"auto", display:"block" }}
+          />
         </Link>
         <div className="hide-mob" style={{ display:"flex", gap:2, alignItems:"center", background:"var(--surface)", border:"1px solid var(--bd)", borderRadius:100, padding:"5px 6px" }}>
           {NAV_LINKS.map(l => (
@@ -388,8 +433,25 @@ function Navbar({ theme, toggleTheme }) {
    HERO SECTION
 ═══════════════════════════════════════════════ */
 function HeroSection({ hero }) {
-  const go    = useGo();
-  const words = useMemo(() => hero.headline.trim().split(" "), [hero.headline]);
+  const words = useMemo(() => "Built for brands that move differently.".trim().split(" "), []);
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle");
+
+  const submit = useCallback(async () => {
+    const clean = email.trim();
+    if (!clean || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean)) return;
+    setStatus("sending");
+    try {
+      const body = new FormData();
+      body.append("email", clean);
+      body.append("source", "waitlist");
+      body.append("_subject", "New waitlist signup — 1204Studios");
+      const res = await fetch("https://formspree.io/f/xojkewgr", { method:"POST", body, headers:{ Accept:"application/json" } });
+      if (res.ok) { setStatus("done"); setEmail(""); }
+      else setStatus("error");
+    } catch(e) { setStatus("error"); }
+  }, [email]);
+
   return (
     <section style={{ minHeight:"100vh", display:"flex", flexDirection:"column", justifyContent:"center", paddingTop:66, position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, background:"var(--bg)", overflow:"hidden" }}>
@@ -403,17 +465,53 @@ function HeroSection({ hero }) {
         </div>
         <h1 className="dn fu" style={{ fontSize:"clamp(40px,7.5vw,108px)", color:"var(--text)", maxWidth:"100%", marginBottom:36, overflowWrap:"break-word" }}>
           {words.map((w, i) => (
-            <span key={i} style={{ display:"inline-block", marginRight:"0.25em", color:i === words.length - 1 ? "var(--pink)" : "var(--text)" }}>{w}</span>
+            <span key={i} style={{ display:"inline-block", marginRight:"0.25em", color:i >= words.length - 1 ? "var(--pink)" : "var(--text)" }}>{w}</span>
           ))}
         </h1>
-        <p style={{ fontSize:"clamp(14px,1.5vw,19px)", color:"var(--text-dim)", maxWidth:"min(520px,100%)", lineHeight:1.75, marginBottom:44 }} className="fu d2">
-          {hero.subtext}
+        <p style={{ fontSize:"clamp(14px,1.5vw,19px)", color:"var(--text-dim)", maxWidth:"min(480px,100%)", lineHeight:1.75, marginBottom:36 }} className="fu d2">
+          Branding, campaigns, print, and creative education from Lagos. Launching soon — get on the list.
         </p>
-        <div style={{ display:"flex", gap:12, flexWrap:"wrap" }} className="fu d3">
-          <button onClick={() => go("Contact")} className="btn btn-primary">{hero.cta1}</button>
-          <Link to="/book-call" className="btn btn-ghost">Book a Call →</Link>
-          <button onClick={() => go("Portfolio")} className="btn btn-ghost">{hero.cta2}</button>
-        </div>
+
+        {status === "done" ? (
+          <div className="fu d3" style={{ display:"flex", alignItems:"center", gap:12, padding:"16px 20px", background:"rgba(34,197,94,.08)", border:"1px solid rgba(34,197,94,.25)", borderRadius:12, maxWidth:420 }}>
+            <span style={{ fontSize:20 }}>✓</span>
+            <div>
+              <div style={{ fontSize:14, fontWeight:700, color:"var(--green)" }}>You are on the list.</div>
+              <div style={{ fontSize:12, color:"var(--text-dim)" }}>We will let you know when we go live.</div>
+            </div>
+          </div>
+        ) : (
+          <div className="fu d3" style={{ maxWidth:440 }}>
+            <div className="mob-stack" style={{ display:"flex", gap:8, marginBottom:10 }}>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && submit()}
+                placeholder="you@email.com"
+                style={{
+                  flex:1, padding:"14px 16px", fontSize:14, background:"var(--surface)",
+                  border:"1px solid var(--bd2)", borderRadius:10, color:"var(--text)", outline:"none",
+                  fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif",
+                  transition:"border-color .2s", minWidth:0,
+                }}
+                onFocus={e => e.target.style.borderColor = "var(--pink)"}
+                onBlur={e => e.target.style.borderColor = "var(--bd2)"}
+              />
+              <button
+                onClick={submit}
+                disabled={status === "sending"}
+                className="btn btn-pink"
+                style={{ padding:"14px 24px", fontSize:14, borderRadius:10, flexShrink:0 }}
+              >
+                {status === "sending" ? "..." : "Join Waitlist →"}
+              </button>
+            </div>
+            {status === "error" && <p style={{ fontSize:12, color:"var(--pink)" }}>Something went wrong. Email hello@1204studios.com</p>}
+            <p style={{ fontSize:11, color:"var(--text-muted)" }}>No spam. One email when we launch.</p>
+          </div>
+        )}
+
         <div style={{ marginTop:72, display:"flex", alignItems:"center", gap:12 }} className="fu d4">
           <div style={{ width:1, height:52, background:"linear-gradient(to bottom,var(--pink),transparent)", animation:"pulseH 2s ease infinite" }}/>
           <span style={{ fontSize:11, color:"var(--text-muted)", letterSpacing:2, textTransform:"uppercase" }}>Scroll to explore</span>
@@ -437,9 +535,10 @@ function ProblemStatements() {
   const go = useGo();
   const [openIdx, setOpenIdx] = useState(null);
   const toggle = useCallback(i => setOpenIdx(prev => prev === i ? null : i), []);
+  const revealRef = useSectionReveal();
 
   return (
-    <section style={{ background:"var(--s1)", borderTop:"1px solid var(--bd)", padding:"100px 0", contentVisibility:"auto", containIntrinsicSize:"0 600px" }}>
+    <section ref={revealRef} className="section-reveal" style={{ background:"var(--s1)", borderTop:"1px solid var(--bd)", padding:"100px 0", contentVisibility:"auto", containIntrinsicSize:"0 600px" }}>
       <div className="wrap">
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:64, alignItems:"end", marginBottom:64 }} className="mob-grid1">
           <div>
@@ -503,17 +602,18 @@ const BrandBar = memo(function BrandBar({ brands, brandBar }) {
         </p>
         <p style={{ fontSize:13.5, color:"var(--text-muted)", marginTop:6, fontStyle:"italic" }}>{brandBar.sub}</p>
       </div>
-      <div style={{ overflow:"hidden", maskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", WebkitMaskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", contain:"layout" }}>
-        <div style={{ display:"flex", width:"max-content", animation:"marquee 40s linear infinite", willChange:"transform" }}>
+      <div className="brand-marquee-track" style={{ overflow:"hidden", maskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", WebkitMaskImage:"linear-gradient(to right,transparent,black 8%,black 92%,transparent)", contain:"layout" }}>
+        <div className="brand-marquee-inner" style={{ display:"flex", width:"max-content", animation:"marquee 40s linear infinite", willChange:"transform" }}>
           {doubled.map((b, i) => (
-            <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"0 40px", borderRight:"1px solid var(--bd)", width:150, height:52, flexShrink:0 }}>
+            <div key={i} className="brand-marquee-item" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"0 40px", borderRight:"1px solid var(--bd)", width:150, height:52, flexShrink:0, cursor:"default" }}>
               {b.logoUrl
-                ? <img src={b.logoUrl} alt={b.name} loading="lazy" width="100" height="36" style={{ maxHeight:36, maxWidth:100, objectFit:"contain", filter:"brightness(0) invert(1)", opacity:.3 }}/>
+                ? <img src={b.logoUrl} alt={b.name} loading="lazy" width="100" height="36" style={{ maxHeight:36, maxWidth:100, objectFit:"contain" }}/>
                 : <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:700, fontSize:16, color:"var(--text-muted)", letterSpacing:"-.01em", whiteSpace:"nowrap" }}>{b.name}</span>}
             </div>
           ))}
         </div>
       </div>
+      <style>{`.brand-marquee-track:hover .brand-marquee-inner{animation-play-state:paused;}`}</style>
     </section>
   );
 });
@@ -587,14 +687,24 @@ function MetricsCarousel({ metrics }) {
 ═══════════════════════════════════════════════ */
 const CSCard = memo(function CSCard({ cs, onClick }) {
   return (
-    <div onClick={onClick} style={{ background:cs.hero || "var(--s2)", border:"1px solid var(--bd)", padding:36, cursor:"pointer", transition:"transform .3s, border-color .3s", position:"relative", overflow:"hidden", minHeight:240 }}
-      onMouseOver={e => { e.currentTarget.style.borderColor = "rgba(255,45,120,.3)"; e.currentTarget.style.transform = "translateY(-4px)"; }}
-      onMouseOut={e => { e.currentTarget.style.borderColor = "var(--bd)"; e.currentTarget.style.transform = ""; }}>
-      <div style={{ position:"absolute", bottom:-20, right:-10, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:110, color:"rgba(255,255,255,.03)", lineHeight:1, userSelect:"none", pointerEvents:"none" }}>1204</div>
-      <span className="pill pill-pink" style={{ marginBottom:16, display:"inline-block" }}>{cs.category}</span>
-      <h3 style={{ fontWeight:700, fontSize:"clamp(17px,2vw,22px)", color:"#fff", marginBottom:10, lineHeight:1.2 }}>{cs.title}</h3>
-      <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.55)", lineHeight:1.7, maxWidth:400 }}>{cs.summary}</p>
-      <div style={{ marginTop:24, fontSize:13, color:"var(--pink)", fontWeight:600 }}>Read Case Study →</div>
+    <div onClick={onClick} style={{ background:cs.hero || "var(--s2)", border:"1px solid var(--bd)", cursor:"pointer", transition:"transform .3s, border-color .3s, box-shadow .3s", position:"relative", overflow:"hidden", minHeight:240, borderRadius:2 }}
+      onMouseOver={e => { e.currentTarget.style.borderColor = "rgba(255,45,120,.3)"; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,.2)"; }}
+      onMouseOut={e => { e.currentTarget.style.borderColor = "var(--bd)"; e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "none"; }}>
+      {cs.coverImage && (
+        <div style={{ height:220, overflow:"hidden", position:"relative" }}>
+          <img src={cs.coverImage} alt={cs.title} loading="lazy"
+            style={{ width:"100%", height:"100%", objectFit:"cover", display:"block", transition:"transform .5s cubic-bezier(.4,0,.2,1)" }}
+            onMouseOver={e => e.currentTarget.style.transform = "scale(1.05)"}
+            onMouseOut={e => e.currentTarget.style.transform = "scale(1)"} />
+          <div style={{ position:"absolute", inset:0, background:`linear-gradient(to bottom, transparent 30%, ${cs.hero || "var(--s2)"} 100%)`, pointerEvents:"none" }}/>
+        </div>
+      )}
+      <div style={{ padding:36, position:"relative" }}>
+        <span className="pill pill-pink" style={{ marginBottom:16, display:"inline-block" }}>{cs.category}</span>
+        <h3 style={{ fontWeight:700, fontSize:"clamp(17px,2vw,22px)", color:"#fff", marginBottom:10, lineHeight:1.2 }}>{cs.title}</h3>
+        <p style={{ fontSize:13.5, color:"rgba(255,255,255,0.7)", lineHeight:1.7, maxWidth:400 }}>{cs.summary}</p>
+        <div style={{ marginTop:24, fontSize:13, color:"var(--pink)", fontWeight:600 }}>Read Case Study →</div>
+      </div>
     </div>
   );
 });
@@ -781,14 +891,28 @@ function Home({ brands, hero, brandBar, metrics, caseStudies, blogPosts }) {
               <button onClick={() => go("Blog")} className="btn btn-ghost">All Posts →</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:3 }}>
-              {featuredBP.map(post => (
-                <div key={post.id} className="glass" style={{ cursor:"pointer", transition:"transform .3s, background .2s", overflow:"hidden" }}
+              {featuredBP.map(post => {
+                const tagColors = { Marketing:"#ff2d78", Technology:"#00c8e0", Design:"#a855f7", Branding:"#ff2d78", Process:"#FFDE21", Print:"#00c8e0" };
+                const accent = tagColors[post.tag] || "#ff2d78";
+                return (
+                <div key={post.id} className="glass blog-thumb-wrap" style={{ cursor:"pointer", transition:"transform .3s, background .2s", overflow:"hidden" }}
                   onClick={() => { navigate("/blog/" + post.id); window.scrollTo(0, 0); }}
                   onMouseOver={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.transform = "translateY(-3px)"; }}
                   onMouseOut={e => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.transform = ""; }}>
-                  <div style={{ height:4, background:"var(--pink)" }}/>
-                  <div style={{ padding:"28px 24px" }}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+                  {post.coverImage ? (
+                    <div style={{ height:160, overflow:"hidden", position:"relative" }}>
+                      <img src={post.coverImage} alt={post.title} loading="lazy" className="blog-thumb" />
+                      <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 40%, var(--s1) 100%)", pointerEvents:"none" }}/>
+                    </div>
+                  ) : (
+                    <div style={{ height:120, overflow:"hidden", position:"relative", background:`linear-gradient(135deg, ${accent}18 0%, ${accent}08 50%, var(--s1) 100%)` }}>
+                      <div style={{ position:"absolute", width:120, height:120, borderRadius:"50%", background:`${accent}10`, top:-30, right:-20 }}/>
+                      <div style={{ position:"absolute", width:60, height:60, borderRadius:"50%", background:`${accent}08`, bottom:10, left:20 }}/>
+                      <div style={{ position:"absolute", bottom:0, left:0, right:0, height:40, background:"linear-gradient(to bottom, transparent, var(--s1))" }}/>
+                    </div>
+                  )}
+                  <div style={{ padding:"20px 24px 28px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                       <span className="pill pill-pink" style={{ fontSize:10 }}>{post.tag}</span>
                       <span style={{ fontSize:11.5, color:"var(--text-muted)" }}>{post.readTime}</span>
                     </div>
@@ -797,35 +921,56 @@ function Home({ brands, hero, brandBar, metrics, caseStudies, blogPosts }) {
                     <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:20, paddingTop:16, borderTop:"1px solid var(--bd)" }}>{post.date}</p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
       )}
 
-      {/* Founders */}
+      {/* Who We Are */}
       <section style={{ background:"var(--bg)", borderTop:"1px solid var(--bd)", padding:"120px 0" }}>
         <div className="wrap">
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:80, alignItems:"center" }} className="mob-grid1">
-            <div>
-              <span className="label" style={{ color:"var(--text-muted)" }}>Who We Are</span>
-              <h2 className="dn" style={{ fontSize:"clamp(40px,5vw,68px)", color:"var(--text)", marginTop:10 }}>Two designers<br />who never<br />fit the norm.</h2>
-              <div style={{ width:40, height:3, background:"var(--pink)", margin:"24px 0" }}/>
-              <p style={{ fontSize:16, color:"var(--text-dim)", lineHeight:1.85, marginBottom:32 }}>
-                <strong style={{ color:"var(--text)" }}>Goke and Okiki</strong> built 1204Studios around a single belief: the best creative work comes from thinking differently — about problems, about audiences, about what design is actually for.
-              </p>
-              <button onClick={() => go("About")} className="btn btn-ghost">Our Story →</button>
-            </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:3 }}>
-              {[{ name:"Goke", role:"Creative Director", accent:"var(--pink)" }, { name:"Okiki", role:"Design Lead", accent:"var(--purple)" }].map((f, i) => (
-                <div key={i} className="glass" style={{ padding:"40px 28px", position:"relative", overflow:"hidden", minHeight:220 }}>
-                  <div style={{ position:"absolute", bottom:-20, right:-10, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:80, color:"rgba(255,255,255,.03)", lineHeight:1, pointerEvents:"none" }}>1204</div>
-                  <div style={{ width:48, height:48, border:`2px solid ${f.accent}`, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:20, color:f.accent, marginBottom:16 }}>{f.name[0]}</div>
-                  <h4 style={{ fontWeight:700, fontSize:18, color:"var(--text)" }}>{f.name}</h4>
-                  <p style={{ fontSize:13, color:f.accent, marginTop:4 }}>{f.role}</p>
+          <div style={{ marginBottom:64 }}>
+            <span className="label" style={{ color:"var(--text-muted)" }}>Who We Are</span>
+            <h2 className="dn" style={{ fontSize:"clamp(40px,5vw,68px)", color:"var(--text)", marginTop:10, maxWidth:700 }}>Technology-led.<br />Hands-on.<br /><span style={{ color:"var(--pink)" }}>Uncompromising.</span></h2>
+            <div style={{ width:40, height:3, background:"var(--pink)", margin:"24px 0" }}/>
+            <p style={{ fontSize:17, color:"var(--text-dim)", lineHeight:1.85, maxWidth:620, marginBottom:12 }}>
+              We integrate AI and modern technology into every layer of how we work. It makes us faster, sharper, and more precise than studios twice our size. But speed without substance is noise.
+            </p>
+            <p style={{ fontSize:17, color:"var(--text-dim)", lineHeight:1.85, maxWidth:620, marginBottom:32 }}>
+              That is why we still put our hands in the mud. Every pixel is placed with intention, every strategy is stress-tested by people who care, and every deliverable carries our signature attention to detail. The technology makes it efficient. The hands make it excellent.
+            </p>
+            <button onClick={() => go("About")} className="btn btn-ghost">More About Us →</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:3 }} className="mob-grid1">
+            {[
+              {
+                num:"01", accent:"var(--pink)", title:"Technology & AI",
+                desc:"We use AI-assisted research, automated workflows, and intelligent design tooling to compress timelines without compressing quality. What takes others weeks, we deliver in days.",
+                detail:"Automated brand audits, AI-powered content analysis, intelligent colour systems, and data-led campaign strategy are built into our process from day one."
+              },
+              {
+                num:"02", accent:"var(--cyan)", title:"Process & Precision",
+                desc:"Technology means nothing without structure. Every project follows a deliberate process: research, strategy, execution, review. No shortcuts, no handwaving, no assumptions.",
+                detail:"Structured briefs, milestone reviews, version-controlled deliverables, and transparent timelines. You always know where your project is and why."
+              },
+              {
+                num:"03", accent:"var(--purple)", title:"Craft & Excellence",
+                desc:"Automation handles the repetition. Humans handle the judgment. Every kerning pair, every colour value, every layout decision is made by someone who refuses to settle.",
+                detail:"Our final output is never a first draft with filters on top. It is refined, reconsidered, and pressure-tested until it meets a standard most clients notice but cannot articulate."
+              },
+            ].map((item, i) => (
+              <div key={i} className="glass" style={{ padding:"40px 32px", position:"relative", overflow:"hidden" }}>
+                <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:item.accent }}/>
+                <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:52, color:`${item.accent}15`, lineHeight:1, display:"block", marginBottom:16 }}>{item.num}</span>
+                <h3 style={{ fontWeight:700, fontSize:20, color:"var(--text)", marginBottom:12 }}>{item.title}</h3>
+                <p style={{ fontSize:15, color:"var(--text-dim)", lineHeight:1.8, marginBottom:16 }}>{item.desc}</p>
+                <div style={{ borderTop:"1px solid var(--bd)", paddingTop:16 }}>
+                  <p style={{ fontSize:13, color:"var(--text-muted)", lineHeight:1.75 }}>{item.detail}</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -837,7 +982,7 @@ function Home({ brands, hero, brandBar, metrics, caseStudies, blogPosts }) {
         <div style={{ position:"absolute", inset:0, backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n2'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n2)'/%3E%3C/svg%3E\")", opacity:.04, pointerEvents:"none" }}/>
         <div className="wrap" style={{ textAlign:"center", position:"relative", zIndex:1 }}>
           <h2 className="dn" style={{ fontSize:"clamp(36px,8vw,100px)", color:"#fff", maxWidth:"100%", overflowWrap:"break-word" }}>Ready to move<br />differently?</h2>
-          <p style={{ fontSize:"clamp(15px,1.6vw,18px)", color:"rgba(255,255,255,.7)", maxWidth:"min(460px,90%)", margin:"24px auto 44px", lineHeight:1.75 }}>Tell us about your project. We'll tell you exactly how we'd approach it.</p>
+          <p style={{ fontSize:"clamp(15px,1.6vw,18px)", color:"rgba(255,255,255,.85)", maxWidth:"min(460px,90%)", margin:"24px auto 44px", lineHeight:1.75 }}>Tell us about your project. We'll tell you exactly how we'd approach it.</p>
           <div style={{ display:"flex", gap:14, justifyContent:"center", flexWrap:"wrap" }}>
             <button onClick={() => go("Contact")} className="btn" style={{ background:"var(--always-white)", color:"var(--pink)", padding:"16px 44px", fontSize:15 }}>Start a Project</button>
             <Link to="/book-call" className="btn" style={{ background:"transparent", color:"var(--always-white)", border:"2px solid rgba(255,255,255,.3)", padding:"16px 44px", fontSize:15 }}>Book a Call →</Link>
@@ -935,13 +1080,26 @@ function Blog({ blogPosts }) {
             {tags.map(t => <button key={t} onClick={() => setFilter(t)} style={{ padding:"8px 18px", border:"1px solid var(--bd)", borderRadius:100, background:filter === t ? "#fff" : "transparent", color:filter === t ? "#0a0a0a" : "var(--text-dim)", fontSize:13, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", cursor:"pointer", transition:"all .2s" }}>{t}</button>)}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:3 }}>
-            {filtered.map(post => (
-              <div key={post.id} className="glass" style={{ cursor:"pointer", transition:"transform .3s, background .2s" }}
+            {filtered.map(post => {
+              const tagColors = { Marketing:"#ff2d78", Technology:"#00c8e0", Design:"#a855f7", Branding:"#ff2d78", Process:"#FFDE21", Print:"#00c8e0" };
+              const accent = tagColors[post.tag] || "#ff2d78";
+              return (
+              <div key={post.id} className="glass blog-thumb-wrap" style={{ cursor:"pointer", transition:"transform .3s, background .2s", overflow:"hidden" }}
                 onClick={() => { navigate("/blog/" + post.id); window.scrollTo(0, 0); }}
                 onMouseOver={e => { e.currentTarget.style.background = "var(--surface-hover)"; e.currentTarget.style.transform = "translateY(-3px)"; }}
                 onMouseOut={e => { e.currentTarget.style.background = "var(--surface)"; e.currentTarget.style.transform = ""; }}>
-                <div style={{ height:4, background:"var(--pink)" }}/>
-                <div style={{ padding:"28px 24px" }}>
+                {post.coverImage
+                  ? <div style={{ height:180, overflow:"hidden", position:"relative" }}>
+                      <img src={post.coverImage} alt={post.title} loading="lazy" className="blog-thumb" />
+                      <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, transparent 40%, var(--bg) 100%)", pointerEvents:"none" }}/>
+                    </div>
+                  : <div style={{ height:120, overflow:"hidden", position:"relative", background:`linear-gradient(135deg, ${accent}18 0%, ${accent}08 50%, var(--bg) 100%)` }}>
+                      <div style={{ position:"absolute", width:120, height:120, borderRadius:"50%", background:`${accent}10`, top:-30, right:-20 }}/>
+                      <div style={{ position:"absolute", width:60, height:60, borderRadius:"50%", background:`${accent}08`, bottom:10, left:20 }}/>
+                      <div style={{ position:"absolute", bottom:0, left:0, right:0, height:40, background:"linear-gradient(to bottom, transparent, var(--bg))" }}/>
+                    </div>
+                }
+                <div style={{ padding:"20px 24px 28px" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                     <span className="pill pill-pink" style={{ fontSize:10 }}>{post.tag}</span>
                     <span style={{ fontSize:11.5, color:"var(--text-muted)" }}>{post.readTime}</span>
@@ -951,7 +1109,8 @@ function Blog({ blogPosts }) {
                   <p style={{ fontSize:12, color:"var(--text-muted)", marginTop:20, paddingTop:16, borderTop:"1px solid var(--bd)" }}>{post.date}</p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1216,7 +1375,61 @@ function Tutoring() {
 }
 
 /* ═══════════════════════════════════════════════
-   ABOUT
+   TEAM DATA
+═══════════════════════════════════════════════ */
+const HISTORY_ITEMS = [
+  { year:"2016", title:"The Foundation", desc:"Started as G'RAPHIX — a one-person operation focused on graphic design and print production. This is where the fundamentals were built: typography, layout, colour theory, and the discipline of getting every detail right before anything goes to print.", images:[] },
+  { year:"2019", title:"Expanding the Craft", desc:"Evolved into TellyStudios, taking on motion, video, and digital campaigns. Learned to deliver creative at speed without sacrificing quality. Managed small teams, bigger clients, and tighter deadlines across fintech and FMCG.", images:[] },
+  { year:"2021", title:"The Production Years", desc:"To-tom Prints. High-volume print production, packaging systems, and corporate materials. This is where the systems thinking was born — building processes that could scale output while keeping every piece at standard.", images:[] },
+  { year:"2026", title:"1204Studios", desc:"Everything learned over a decade, rebuilt from the ground up. A technology-led creative studio that integrates AI into research and workflows while keeping every final output handcrafted. Fewer clients, deeper work, better results.", images:[] },
+];
+
+const FOCUS_AREAS = [
+  { label:"Branding", desc:"Identity systems built to outlast the trends they were designed in." },
+  { label:"Marketing", desc:"Strategy-first campaigns with every naira traced to a reason." },
+  { label:"Print", desc:"Production-ready output with digital-grade rigour." },
+  { label:"Technology", desc:"AI-assisted workflows that compress timelines without compressing quality." },
+  { label:"Education", desc:"Structured programmes that produce job-ready creatives." },
+];
+
+const PRINCIPLES = [
+  { title:"Intentional Craft", desc:"Every decision has a reason. We do not design by default. We design by conviction." },
+  { title:"Radical Transparency", desc:"You always know where your project stands. No surprises, no chasing, no guesswork." },
+  { title:"Intellectual Honesty", desc:"We push back on briefs that do not serve the goal. Honest partnership produces better work." },
+  { title:"Long-Term Thinking", desc:"We design systems that last, not assets that expire. Brands should outlive the campaigns that launch them." },
+];
+
+const LEADERSHIP = [
+  {
+    id:"goke-paul",
+    name:"Goke Paul",
+    role:"Creative Director & Founder",
+    photo:null,
+    bio:"A decade of building brands, running campaigns, and leading creative teams across Lagos. From scrappy startup identities to national campaigns, his approach has always been the same: understand the problem before you touch a pixel. At 1204Studios, he sets the creative direction and makes sure every piece of work carries intention.",
+    longBio:"Goke started designing in 2016 out of necessity — a client needed a logo, nobody else was available, and a career was born. What began as freelance print work quickly became a deep obsession with how brands are built, how campaigns move people, and how design can change the trajectory of a business.\n\nOver the next decade, he moved through three studios, each one sharpening a different edge. G'RAPHIX built the craft. TellyStudios introduced speed and motion. To-tom Prints taught him systems and scale. By the time 1204Studios launched in 2026, the question was no longer whether he could do the work — it was whether he could build a studio that does it better than anywhere else in Lagos.\n\nThat is the ambition. Every client, every project, every pixel is measured against it.",
+    experience:[
+      { period:"2026 – Present", company:"1204Studios", role:"Creative Director & Founder", desc:"Leads creative direction, brand strategy, and studio operations. Built the studio from the ground up with a focus on integrating AI and technology into traditional creative workflows." },
+      { period:"2021 – 2023", company:"To-tom Prints", role:"Creative Lead", desc:"Oversaw all creative output for a high-volume print production house. Developed quality control systems that reduced error rates while increasing monthly output." },
+      { period:"2019 – 2021", company:"TellyStudios", role:"Senior Designer & Motion Lead", desc:"Led design and motion graphics for digital campaigns. Managed a small team delivering social content, brand videos, and campaign creative for clients across fintech and FMCG." },
+      { period:"2016 – 2019", company:"G'RAPHIX", role:"Graphic Designer", desc:"Started in print design and brand identity. Built the foundational skills in typography, layout, and visual systems that still inform every project today." },
+    ],
+    skills:["Brand Strategy","Creative Direction","Visual Identity","Campaign Design","Team Leadership","AI-Assisted Workflows","Print Production","Motion Design"],
+  },
+];
+
+const TEAM = [
+  { name:"Okikiola Megida", role:"Midweight Designer", photo:null },
+  { name:"Sodiq Ayilara", role:"Midweight Designer", photo:null },
+  { name:"Segun Adelowo", role:"Midweight Designer", photo:null },
+  { name:"Halima Abiola", role:"Account Manager", photo:null },
+  { name:"Septhen Oretan", role:"Software Engineer", photo:null },
+  { name:"Deborah Adeniyi", role:"Account Manager", photo:null },
+  { name:"Emmanuel Ayeni", role:"Senior Copywriter", photo:null },
+  { name:"Chiamaka Ukaigwe", role:"Social Media Manager", photo:null },
+];
+
+/* ═══════════════════════════════════════════════
+   ABOUT — Loremi-style editorial layout
 ═══════════════════════════════════════════════ */
 function About() {
   const go = useGo();
@@ -1224,50 +1437,285 @@ function About() {
   const schema = useMemo(() => ({
     "@context":"https://schema.org", "@type":"AboutPage",
     "name":"About 1204Studios", "url":"https://1204studios.com/about",
-    "description":"Meet the team behind 1204Studios.",
+    "description":"The story, people, and principles behind 1204Studios.",
     "publisher":{ "@type":"Organization", "name":"1204Studios" },
   }), []);
+
   return (
     <div>
       <JsonLD data={schema} />
-      <PageHero label="About" title={`Two designers.<br/>One <span style="color:var(--pink)">belief.</span>`} sub="1204Studios was built around a single conviction: the best creative work comes from thinking differently." />
+
+      {/* ── HERO: Editorial serif headline ── */}
+      <section style={{ background:"var(--bg)", paddingTop:160, paddingBottom:100, borderBottom:"1px solid var(--bd)", position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", width:500, height:500, borderRadius:"50%", filter:"blur(120px)", background:"var(--pink)", opacity:.04, top:"30%", right:"10%", pointerEvents:"none" }}/>
+        <div className="wrap" style={{ position:"relative", zIndex:1 }}>
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:24 }}>A Creative Studio · Est. 2026 · Lagos</span>
+          <div style={{ display:"grid", gridTemplateColumns:"1.4fr 0.6fr", gap:60, alignItems:"end" }} className="mob-grid1">
+            <h1 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontStyle:"italic", fontSize:"clamp(38px,6.5vw,88px)", color:"var(--text)", lineHeight:1.08, letterSpacing:"-.02em" }}>
+              Building the Creative<br />Infrastructure for<br />Nigerian <span style={{ color:"var(--pink)" }}>Brands.</span>
+            </h1>
+            <p style={{ fontSize:15, color:"var(--text-dim)", lineHeight:1.85, paddingBottom:8 }}>
+              We engineer the systems behind how brands look, speak, and show up — designed for the realities of the Nigerian market through deliberate craft and applied intelligence.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── WHY WE EXIST + Focus Areas ── */}
       <section style={{ background:"var(--bg)", padding:"100px 0", borderBottom:"1px solid var(--bd)" }}>
         <div className="wrap">
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:80 }} className="mob-grid1">
-            {[
-              { name:"Goke", role:"Creative Director", accent:"var(--pink)", bio:"Goke leads creative direction and brand strategy. He's spent over a decade working with brands across fintech, FMCG, and NGO sectors — building identity systems that outlast the trends that were popular when they were designed." },
-              { name:"Okiki", role:"Design Lead", accent:"var(--purple)", bio:"Okiki leads design execution and manages client relationships. He brings a systems-first perspective to every project — ensuring that the work isn't just beautiful but functional, scalable, and implementable." },
-            ].map((f, i) => (
-              <div key={i} className="glass" style={{ padding:40 }}>
-                <div style={{ width:72, height:72, border:`2px solid ${f.accent}`, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:32, color:f.accent, marginBottom:24 }}>{f.name[0]}</div>
-                <h3 style={{ fontWeight:800, fontSize:24, color:"var(--text)", fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>{f.name}</h3>
-                <p style={{ fontSize:13, color:f.accent, fontWeight:600, marginBottom:16, marginTop:6 }}>{f.role}</p>
-                <p style={{ fontSize:15, color:"var(--text-dim)", lineHeight:1.85 }}>{f.bio}</p>
-              </div>
-            ))}
+            <div>
+              <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:16 }}>Why We Exist</span>
+              <p style={{ fontSize:17, color:"var(--text-dim)", lineHeight:1.9, marginBottom:20 }}>
+                To give Nigerian businesses access to the same calibre of creative thinking that the best brands in the world take for granted — strategy-led, detail-obsessed, and built to last.
+              </p>
+              <p style={{ fontSize:17, color:"var(--text-dim)", lineHeight:1.9 }}>
+                We do not believe great branding should be a luxury reserved for companies with international budgets. We built 1204Studios to prove it does not have to be.
+              </p>
+            </div>
+            <div>
+              {FOCUS_AREAS.map((f, i) => (
+                <div key={i} style={{ padding:"20px 0", borderBottom:"1px solid var(--bd)" }}>
+                  <div style={{ fontSize:15, fontWeight:700, color:"var(--text)", marginBottom:4 }}>{f.label}</div>
+                  <p style={{ fontSize:14, color:"var(--text-dim)", lineHeight:1.7 }}>{f.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* ── THE APPROACH ── */}
+      <section style={{ background:"var(--s1)", padding:"100px 0", borderBottom:"1px solid var(--bd)" }}>
+        <div className="wrap" style={{ maxWidth:800, margin:"0 auto" }}>
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:16 }}>The Studio Approach</span>
+          <h2 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontSize:"clamp(24px,3.5vw,40px)", color:"var(--text)", lineHeight:1.35, marginBottom:28 }}>
+            We reject the assembly-line model of modern agency work. Every project is treated as a one-of-one. Every system we design is built to outlive the campaign that launched it.
+          </h2>
+          <p style={{ fontSize:16, color:"var(--text-dim)", lineHeight:1.85, marginBottom:20 }}>
+            Technology makes us efficient. AI-powered research, automated workflows, and intelligent design tooling compress timelines so we can spend more time on what matters: the thinking, the craft, and the detail.
+          </p>
+          <p style={{ fontSize:16, color:"var(--text-dim)", lineHeight:1.85 }}>
+            But efficiency without excellence is just speed. Every final deliverable is shaped by human hands, reviewed obsessively, and held to a standard most clients notice but cannot articulate. That is the difference.
+          </p>
+        </div>
+      </section>
+
+      {/* ── HISTORY TIMELINE — alternating layout ── */}
+      <section style={{ background:"var(--bg)", padding:"100px 0", borderBottom:"1px solid var(--bd)" }}>
+        <div className="wrap">
+          <div style={{ textAlign:"center", marginBottom:72 }}>
+            <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:16 }}>Our Journey</span>
+            <h2 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontSize:"clamp(28px,4vw,48px)", color:"var(--text)", lineHeight:1.2 }}>A History of Deliberate Evolution</h2>
+          </div>
+          <div style={{ maxWidth:900, margin:"0 auto" }}>
+            {HISTORY_ITEMS.map((item, i) => {
+              const isEven = i % 2 === 0;
+              return (
+                <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:40, marginBottom:i < HISTORY_ITEMS.length - 1 ? 72 : 0, alignItems:"start" }} className="mob-grid1">
+                  <div style={{ order:isEven ? 1 : 2 }}>
+                    <span style={{ fontFamily:"Georgia,'Times New Roman',serif", fontStyle:"italic", fontSize:"clamp(32px,4vw,56px)", color:"var(--pink)", display:"block", marginBottom:8 }}>{item.year}</span>
+                    <h3 style={{ fontSize:22, fontWeight:700, color:"var(--text)", marginBottom:12, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>{item.title}</h3>
+                    <p style={{ fontSize:15, color:"var(--text-dim)", lineHeight:1.85 }}>{item.desc}</p>
+                  </div>
+                  <div style={{ order:isEven ? 2 : 1 }}>
+                    {item.images.length > 0 ? (
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                        {item.images.map((img, j) => <img key={j} src={img} alt="" style={{ width:"100%", aspectRatio:"4/3", objectFit:"cover", borderRadius:4, display:"block", background:"var(--s2)" }}/>)}
+                      </div>
+                    ) : (
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
+                        <div style={{ aspectRatio:"4/3", background:"var(--s1)", border:"1px solid var(--bd)", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize:11, color:"var(--text-muted)", letterSpacing:1 }}>Photo</span>
+                        </div>
+                        <div style={{ aspectRatio:"4/3", background:"var(--s1)", border:"1px solid var(--bd)", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize:11, color:"var(--text-muted)", letterSpacing:1 }}>Photo</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── LEADERSHIP ── */}
       <section style={{ background:"var(--s1)", padding:"100px 0", borderBottom:"1px solid var(--bd)" }}>
         <div className="wrap">
-          <span className="label" style={{ color:"var(--text-muted)" }}>What We Stand For</span>
-          <h2 className="dn" style={{ fontSize:"clamp(36px,5vw,64px)", color:"var(--text)", marginTop:10, marginBottom:48 }}>Core Values</h2>
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:3 }}>
-            {[["Intentional","Every decision has a reason. We don't do default."],["Structured","Good creative work has a logic underneath it."],["Direct","We say what we mean and mean what we say."],["Capable","We only offer what we can actually deliver."],["Curious","We're still learning. That's how it stays interesting."]].map(([t, d], i) => (
-              <div key={i} className="glass" style={{ padding:"32px 28px" }}>
-                <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:44, color:"rgba(255,45,120,.15)", lineHeight:1, display:"block", marginBottom:14 }}>0{i + 1}</span>
-                <h3 style={{ fontWeight:700, fontSize:18, color:"var(--text)", marginBottom:8 }}>{t}</h3>
-                <p style={{ fontSize:14, color:"var(--text-dim)", lineHeight:1.7 }}>{d}</p>
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:48 }}>Leadership</span>
+          {LEADERSHIP.map(person => (
+            <div key={person.id} style={{ display:"grid", gridTemplateColumns:"0.45fr 0.55fr", gap:56, alignItems:"start" }} className="mob-grid1">
+              <div style={{ aspectRatio:"3/4", background:"var(--s2)", border:"1px solid var(--bd)", borderRadius:4, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {person.photo ? (
+                  <img src={person.photo} alt={person.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                ) : (
+                  <div style={{ width:100, height:100, borderRadius:"50%", border:"3px solid var(--pink)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:42, color:"var(--pink)" }}>
+                    {person.name.split(" ").map(n=>n[0]).join("")}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h3 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontSize:"clamp(28px,4vw,44px)", color:"var(--text)", lineHeight:1.15, marginBottom:8 }}>{person.name}</h3>
+                <p style={{ fontSize:14, color:"var(--pink)", fontWeight:600, marginBottom:24, letterSpacing:.5 }}>{person.role}</p>
+                <p style={{ fontSize:16, color:"var(--text-dim)", lineHeight:1.9, marginBottom:28 }}>{person.bio}</p>
+                <Link to={`/about/${person.id}`} className="btn btn-ghost btn-sm">See Full Experience →</Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── PULL QUOTE ── */}
+      <section style={{ background:"var(--bg)", padding:"80px 0", borderBottom:"1px solid var(--bd)" }}>
+        <div className="wrap wrap-sm" style={{ textAlign:"center" }}>
+          <blockquote style={{ fontFamily:"Georgia,'Times New Roman',serif", fontStyle:"italic", fontSize:"clamp(20px,3vw,34px)", color:"var(--text)", lineHeight:1.45, margin:"0 auto 20px", maxWidth:700 }}>
+            "1204Studios was founded on the belief that every Nigerian business, no matter how early or ambitious, deserves creative work built with the same rigour as the best in the world."
+          </blockquote>
+          <p style={{ fontSize:13, color:"var(--text-muted)", fontWeight:600 }}>— Goke Paul, Founder</p>
+        </div>
+      </section>
+
+      {/* ── FOUNDATIONAL PRINCIPLES ── */}
+      <section style={{ background:"var(--s1)", padding:"100px 0", borderBottom:"1px solid var(--bd)" }}>
+        <div className="wrap">
+          <div style={{ display:"grid", gridTemplateColumns:"0.4fr 0.6fr", gap:80, alignItems:"start" }} className="mob-grid1">
+            <div>
+              <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:16 }}>Constitutional Clarity</span>
+              <h2 className="dn" style={{ fontSize:"clamp(32px,4vw,48px)", color:"var(--text)", lineHeight:.95 }}>Our Foundational<br />Principles</h2>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:32 }} className="mob-grid1">
+              {PRINCIPLES.map((p, i) => (
+                <div key={i}>
+                  <h4 style={{ fontSize:16, fontWeight:700, color:"var(--text)", marginBottom:8 }}>{p.title}</h4>
+                  <p style={{ fontSize:14, color:"var(--text-dim)", lineHeight:1.75 }}>{p.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── TEAM GRID ── */}
+      <section style={{ background:"var(--bg)", padding:"100px 0", borderBottom:"1px solid var(--bd)" }}>
+        <div className="wrap">
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:16 }}>The Team</span>
+          <h2 className="dn" style={{ fontSize:"clamp(32px,4vw,48px)", color:"var(--text)", marginBottom:48 }}>The people behind<br /><span style={{ color:"var(--pink)" }}>every pixel.</span></h2>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:3 }}>
+            {TEAM.map((person, i) => (
+              <div key={i} style={{ textAlign:"center", overflow:"hidden" }}>
+                <div style={{ aspectRatio:"1", background:"var(--s1)", border:"1px solid var(--bd)", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:2, overflow:"hidden" }}>
+                  {person.photo ? (
+                    <img src={person.photo} alt={person.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                  ) : (
+                    <div style={{ width:56, height:56, borderRadius:"50%", background:"var(--surface)", border:"2px solid var(--bd2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:20, color:"var(--text-dim)" }}>
+                      {person.name.split(" ").map(n=>n[0]).join("")}
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding:"14px 10px 18px" }}>
+                  <h4 style={{ fontSize:13, fontWeight:700, color:"var(--text)", marginBottom:2 }}>{person.name}</h4>
+                  <p style={{ fontSize:11, color:"var(--text-dim)" }}>{person.role}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      {/* ── CTA ── */}
       <section style={{ background:"var(--bg)", padding:"100px 0" }}>
         <div className="wrap wrap-sm" style={{ textAlign:"center" }}>
           <h2 className="dn" style={{ fontSize:"clamp(40px,6vw,80px)", color:"var(--text)", marginBottom:24 }}>Want to work<br />with us?</h2>
           <p style={{ fontSize:17, color:"var(--text-dim)", marginBottom:44, lineHeight:1.75 }}>We take on a small number of clients each quarter to make sure every project gets full attention.</p>
           <button onClick={() => go("Contact")} className="btn btn-primary" style={{ fontSize:16, padding:"16px 44px" }}>Start a Conversation →</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   TEAM MEMBER EXPERIENCE PAGE (Mini CV)
+═══════════════════════════════════════════════ */
+function TeamMemberPage() {
+  const { id } = useParams();
+  const go = useGo();
+  const person = LEADERSHIP.find(p => p.id === id);
+  useSEO(person ? { title: person.name + " — 1204Studios", description: person.bio } : {});
+
+  if (!person) return (
+    <div style={{ padding:"200px 40px", textAlign:"center" }}>
+      <p style={{ fontSize:16, color:"var(--text-dim)", marginBottom:20 }}>Team member not found.</p>
+      <Link to="/about" className="btn btn-ghost">← Back to About</Link>
+    </div>
+  );
+
+  const bioLines = (person.longBio || person.bio).split("\n").filter(Boolean);
+
+  return (
+    <div>
+      {/* Header */}
+      <section style={{ background:"var(--bg)", paddingTop:140, paddingBottom:80, borderBottom:"1px solid var(--bd)" }}>
+        <div className="wrap">
+          <button onClick={() => go("About")} className="btn btn-ghost btn-sm" style={{ marginBottom:32 }}>← Back to Team</button>
+          <div style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:48, alignItems:"start" }} className="mob-grid1 mob-center">
+            <div style={{ width:180, height:220, borderRadius:4, border:"2px solid var(--bd2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:56, color:"var(--pink)", background:"var(--s1)", flexShrink:0, overflow:"hidden" }}>
+              {person.photo ? <img src={person.photo} alt={person.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : person.name.split(" ").map(n=>n[0]).join("")}
+            </div>
+            <div>
+              <h1 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontSize:"clamp(32px,5vw,56px)", color:"var(--text)", lineHeight:1.1, marginBottom:8 }}>{person.name}</h1>
+              <p style={{ fontSize:15, color:"var(--pink)", fontWeight:600, marginBottom:24 }}>{person.role}</p>
+              {bioLines.map((line, i) => (
+                <p key={i} style={{ fontSize:16, color:"var(--text-dim)", lineHeight:1.9, marginBottom:16 }}>{line}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Skills */}
+      {person.skills && (
+        <section style={{ background:"var(--s1)", padding:"32px 0", borderBottom:"1px solid var(--bd)" }}>
+          <div className="wrap">
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              {person.skills.map((s, i) => (
+                <span key={i} className="pill pill-pink">{s}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Experience */}
+      <section style={{ background:"var(--bg)", padding:"80px 0" }}>
+        <div className="wrap" style={{ maxWidth:800, margin:"0 auto" }}>
+          <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:16 }}>Experience</span>
+          <h2 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontSize:"clamp(28px,3.5vw,40px)", color:"var(--text)", marginBottom:48 }}>Career Timeline</h2>
+          {person.experience.map((exp, i) => (
+            <div key={i} style={{ display:"grid", gridTemplateColumns:"160px 1fr", gap:32, paddingBottom:40, marginBottom:40, borderBottom:i < person.experience.length - 1 ? "1px solid var(--bd)" : "none" }} className="mob-grid1">
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, letterSpacing:1.5, textTransform:"uppercase", color:i === 0 ? "var(--pink)" : "var(--text-muted)", marginBottom:6 }}>{exp.period}</div>
+                <div style={{ fontSize:14, fontWeight:600, color:"var(--text)" }}>{exp.company}</div>
+              </div>
+              <div>
+                <h3 style={{ fontSize:18, fontWeight:700, color:"var(--text)", marginBottom:10, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>{exp.role}</h3>
+                <p style={{ fontSize:15, color:"var(--text-dim)", lineHeight:1.85 }}>{exp.desc}</p>
+              </div>
+            </div>
+          ))}
+
+          {/* Contact CTA */}
+          <div className="glass" style={{ padding:"40px 36px", textAlign:"center", marginTop:20 }}>
+            <h3 style={{ fontSize:20, fontWeight:700, color:"var(--text)", marginBottom:12, fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif" }}>Want to work with {person.name.split(" ")[0]}?</h3>
+            <p style={{ fontSize:14, color:"var(--text-dim)", marginBottom:24, lineHeight:1.7 }}>Start a conversation about your project.</p>
+            <div style={{ display:"flex", gap:12, justifyContent:"center", flexWrap:"wrap" }}>
+              <button onClick={() => go("Contact")} className="btn btn-primary">Start a Project →</button>
+              <button onClick={() => go("About")} className="btn btn-ghost">Meet the Team</button>
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -1561,19 +2009,22 @@ const Footer = memo(function Footer() {
       <div className="wrap">
         <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr 1fr", gap:48, paddingBottom:56, borderBottom:"1px solid rgba(255,255,255,.08)" }} className="mob-grid1">
           <div>
-            <Link to="/" style={{ display:"flex", alignItems:"center", gap:2, marginBottom:18 }}>
-              <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:24, color:"#fff", letterSpacing:"-.02em" }}>1204</span>
-              <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,'Helvetica Neue',sans-serif", fontWeight:800, fontSize:24, color:"var(--pink)", letterSpacing:"-.02em" }}>Studios</span>
+            <Link to="/" className="nav-logo-link" style={{ marginBottom:18 }}>
+              <img
+                src="/logo-white.svg"
+                alt="1204Studios"
+                style={{ height:24, width:"auto", display:"block" }}
+              />
             </Link>
-            <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", lineHeight:1.8, maxWidth:260, marginBottom:12 }}>A creative and marketing studio in Lagos, Nigeria. Built for brands that move differently.</p>
+            <p style={{ fontSize:14, color:"rgba(255,255,255,0.6)", lineHeight:1.8, maxWidth:260, marginBottom:12 }}>A creative and marketing studio in Lagos, Nigeria. Built for brands that move differently.</p>
             <div style={{ marginBottom:28 }}>
-              <a href="tel:+2349035583476" style={{ display:"block", fontSize:13, color:"rgba(255,255,255,0.45)", textDecoration:"none", marginBottom:6, transition:"color .15s" }}
-                onMouseOver={e=>e.currentTarget.style.color="#fff"} onMouseOut={e=>e.currentTarget.style.color="rgba(255,255,255,0.45)"}>
+              <a href="tel:+2349035583476" style={{ display:"block", fontSize:13, color:"rgba(255,255,255,0.55)", textDecoration:"none", marginBottom:6, transition:"color .15s" }}
+                onMouseOver={e=>e.currentTarget.style.color="#fff"} onMouseOut={e=>e.currentTarget.style.color="rgba(255,255,255,0.55)"}>
                 ☎ +234 903 558 3476
               </a>
               <a href="https://maps.google.com/?q=22+Glover+Road+Ikoyi+Lagos+Nigeria" target="_blank" rel="noopener noreferrer"
-                style={{ display:"block", fontSize:13, color:"rgba(255,255,255,0.45)", textDecoration:"none", transition:"color .15s" }}
-                onMouseOver={e=>e.currentTarget.style.color="#fff"} onMouseOut={e=>e.currentTarget.style.color="rgba(255,255,255,0.45)"}>
+                style={{ display:"block", fontSize:13, color:"rgba(255,255,255,0.55)", textDecoration:"none", transition:"color .15s" }}
+                onMouseOver={e=>e.currentTarget.style.color="#fff"} onMouseOut={e=>e.currentTarget.style.color="rgba(255,255,255,0.55)"}>
                 ◎ 22 Glover Rd, Ikoyi, Lagos
               </a>
             </div>
@@ -1581,22 +2032,22 @@ const Footer = memo(function Footer() {
           </div>
           {FOOTER_COLS.map((col, i) => (
             <div key={i}>
-              <h4 style={{ fontSize:11, letterSpacing:2.5, textTransform:"uppercase", color:"rgba(255,255,255,0.35)", marginBottom:20, fontWeight:600 }}>{col.title}</h4>
+              <h4 style={{ fontSize:11, letterSpacing:2.5, textTransform:"uppercase", color:"rgba(255,255,255,0.50)", marginBottom:20, fontWeight:600 }}>{col.title}</h4>
               {col.links.map(l => (
-                <Link key={l} to={PAGE_TO_PATH[l] || "/"} style={{ display:"block", color:"rgba(255,255,255,0.5)", fontSize:14, marginBottom:12, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", textDecoration:"none", transition:"color .15s" }}
+                <Link key={l} to={PAGE_TO_PATH[l] || "/"} style={{ display:"block", color:"rgba(255,255,255,0.6)", fontSize:14, marginBottom:12, fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", textDecoration:"none", transition:"color .15s" }}
                   onMouseOver={e => e.currentTarget.style.color = "#fff"}
-                  onMouseOut={e => e.currentTarget.style.color = "rgba(255,255,255,0.5)"}>{l}</Link>
+                  onMouseOut={e => e.currentTarget.style.color = "rgba(255,255,255,0.6)"}>{l}</Link>
               ))}
             </div>
           ))}
         </div>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", paddingTop:24, flexWrap:"wrap", gap:16 }}>
-          <p style={{ fontSize:13, color:"rgba(255,255,255,0.3)" }}>© 2026 1204Studios. All rights reserved.</p>
+          <p style={{ fontSize:13, color:"rgba(255,255,255,0.45)" }}>© 2026 1204Studios. All rights reserved.</p>
           <div style={{ display:"flex", gap:16 }}>
             {["Instagram","Twitter","LinkedIn","Behance"].map(s => (
-              <button key={s} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.4)", fontSize:13, cursor:"pointer", fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", transition:"color .15s" }}
+              <button key={s} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:13, cursor:"pointer", fontFamily:"-apple-system,'SF Pro Text',BlinkMacSystemFont,'Helvetica Neue',sans-serif", transition:"color .15s" }}
                 onMouseOver={e => e.target.style.color = "#fff"}
-                onMouseOut={e => e.target.style.color = "rgba(255,255,255,0.4)"}>{s}</button>
+                onMouseOut={e => e.target.style.color = "rgba(255,255,255,0.5)"}>{s}</button>
             ))}
           </div>
         </div>
@@ -1810,8 +2261,7 @@ function AppInner() {
           alignItems:"center", justifyContent:"center", flexDirection:"column", gap:20,
         }}>
           <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,sans-serif", fontWeight:800, fontSize:32, color:"#fff", letterSpacing:"-.02em" }}>1204</span>
-            <span style={{ fontFamily:"-apple-system,'SF Pro Display',BlinkMacSystemFont,sans-serif", fontWeight:800, fontSize:32, color:"#ff2d78", letterSpacing:"-.02em" }}>Studios</span>
+            <img src="/logo-white.svg" alt="1204Studios" style={{ height:32, width:"auto" }} />
           </div>
           <div style={{ width:32, height:2, background:"rgba(255,255,255,.1)", borderRadius:2, overflow:"hidden" }}>
             <div style={{ height:"100%", background:"#ff2d78", animation:"sbLoad 1.2s ease infinite", borderRadius:2 }} />
@@ -1839,6 +2289,7 @@ function AppInner() {
           <Route path="/services/print"     element={<Print />} />
           <Route path="/services/tutoring"  element={<Tutoring />} />
           <Route path="/about"              element={<About />} />
+          <Route path="/about/:id"           element={<TeamMemberPage />} />
           <Route path="/contact"            element={<Contact />} />
           <Route path="/privacy"            element={<PrivacyPolicy />} />
           <Route path="/terms"              element={<TermsOfUse />} />
