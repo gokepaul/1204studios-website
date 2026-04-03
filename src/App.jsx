@@ -286,6 +286,10 @@ const Styles = memo(function Styles() {
       .blog-thumb{width:100%;height:100%;object-fit:cover;display:block;transition:transform .5s cubic-bezier(.4,0,.2,1);}
       .blog-thumb-wrap:hover .blog-thumb{transform:scale(1.06);}
 
+      /* Team & leadership photos: grayscale by default, color on hover */
+      .team-photo{filter:grayscale(1);transition:filter .4s cubic-bezier(.4,0,.2,1);}
+      .team-photo-wrap:hover .team-photo{filter:grayscale(0);}
+
       @keyframes marquee{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
       @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
       .fu{animation:fadeUp .65s cubic-bezier(.22,1,.36,1) both;}
@@ -1548,9 +1552,9 @@ function About() {
           <span style={{ fontSize:11, fontWeight:600, letterSpacing:3, textTransform:"uppercase", color:"var(--text-muted)", display:"block", marginBottom:48 }}>Leadership</span>
           {LEADERSHIP.map(person => (
             <div key={person.id} style={{ display:"grid", gridTemplateColumns:"0.45fr 0.55fr", gap:56, alignItems:"start" }} className="mob-grid1">
-              <div style={{ aspectRatio:"3/4", background:"var(--s2)", border:"1px solid var(--bd)", borderRadius:4, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div style={{ aspectRatio:"3/4", background:"var(--s2)", border:"1px solid var(--bd)", borderRadius:4, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }} className="team-photo-wrap">
                 {person.photo ? (
-                  <img src={person.photo} alt={person.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                  <img src={person.photo} alt={person.name} className="team-photo" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
                 ) : (
                   <div style={{ width:100, height:100, borderRadius:"50%", border:"3px solid var(--pink)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:42, color:"var(--pink)" }}>
                     {person.name.split(" ").map(n=>n[0]).join("")}
@@ -1606,9 +1610,9 @@ function About() {
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:3 }}>
             {TEAM.map((person, i) => (
               <div key={i} style={{ textAlign:"center", overflow:"hidden" }}>
-                <div style={{ aspectRatio:"1", background:"var(--s1)", border:"1px solid var(--bd)", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:2, overflow:"hidden" }}>
+                <div style={{ aspectRatio:"1", background:"var(--s1)", border:"1px solid var(--bd)", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:2, overflow:"hidden" }} className="team-photo-wrap">
                   {person.photo ? (
-                    <img src={person.photo} alt={person.name} style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+                    <img src={person.photo} alt={person.name} className="team-photo" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
                   ) : (
                     <div style={{ width:56, height:56, borderRadius:"50%", background:"var(--surface)", border:"2px solid var(--bd2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:20, color:"var(--text-dim)" }}>
                       {person.name.split(" ").map(n=>n[0]).join("")}
@@ -1662,8 +1666,8 @@ function TeamMemberPage() {
         <div className="wrap">
           <button onClick={() => go("About")} className="btn btn-ghost btn-sm" style={{ marginBottom:32 }}>← Back to Team</button>
           <div style={{ display:"grid", gridTemplateColumns:"180px 1fr", gap:48, alignItems:"start" }} className="mob-grid1 mob-center">
-            <div style={{ width:180, height:220, borderRadius:4, border:"2px solid var(--bd2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:56, color:"var(--pink)", background:"var(--s1)", flexShrink:0, overflow:"hidden" }}>
-              {person.photo ? <img src={person.photo} alt={person.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : person.name.split(" ").map(n=>n[0]).join("")}
+            <div style={{ width:180, height:220, borderRadius:4, border:"2px solid var(--bd2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"var(--display)", fontWeight:800, fontSize:56, color:"var(--pink)", background:"var(--s1)", flexShrink:0, overflow:"hidden" }} className="team-photo-wrap">
+              {person.photo ? <img src={person.photo} alt={person.name} className="team-photo" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : person.name.split(" ").map(n=>n[0]).join("")}
             </div>
             <div>
               <h1 style={{ fontFamily:"Georgia,'Times New Roman',serif", fontWeight:400, fontSize:"clamp(32px,5vw,56px)", color:"var(--text)", lineHeight:1.1, marginBottom:8 }}>{person.name}</h1>
